@@ -169,6 +169,12 @@ int32_t read_int32(reader* rdr) {
 TableMAXP g_maxp;
 TableHEAD g_head;
 
+TableDirRecord find_required_record(const char* tag_str, TableDirRecord* records, uint32_t* tags, uint16_t count) {
+	TableDirRecord table = find_table_record(tag_str, records, tags, count);
+	if (table.length == 0) { printf("missing table %s\n", tag_str); exit(1); }
+	return table;
+}
+
 
 int read_ttf(const char* path) {
 
@@ -229,24 +235,18 @@ int read_ttf(const char* path) {
 	} req_records;
 	
     
-    req_records.maxp = find_table_record("maxp", records, tags, td.numTables);
-	req_records.glyf = find_table_record("glyf", records, tags, td.numTables);
-	req_records.cmap = find_table_record("cmap", records, tags, td.numTables);
-	req_records.loca = find_table_record("loca", records, tags, td.numTables);
-	req_records.name = find_table_record("name", records, tags, td.numTables);
-	req_records.head = find_table_record("head", records, tags, td.numTables);
-	req_records.hhea = find_table_record("hhea", records, tags, td.numTables);
-	req_records.hmtx = find_table_record("hmtx", records, tags, td.numTables);
-
-
-	for (uint16_t i = 0; i < 8; i++) {
-		TableDirRecord r = req_records.records[i];
-		if (r.length == 0) { printf("couldn't find '%.4s' record\n", (char*)&r.tableTag); return 1; }
-	}
+   	TableDirRecord maxp = find_table_record("maxp", records, tags, td.numTables);
+	TableDirRecord glyf = find_table_record("glyf", records, tags, td.numTables);
+	TableDirRecord cmap = find_table_record("cmap", records, tags, td.numTables);
+	TableDirRecord loca = find_table_record("loca", records, tags, td.numTables);
+	TableDirRecord name = find_table_record("name", records, tags, td.numTables);
+	TableDirRecord head = find_table_record("head", records, tags, td.numTables);
+	TableDirRecord hhea = find_table_record("hhea", records, tags, td.numTables);
+	TableDirRecord hmtx = find_table_record("hmtx", records, tags, td.numTables);
 
 
 	int err; 
-	err = read_maxp(filemem + req_records.maxp.offset, req_records.maxp.length, &g_maxp);
+	err = read_maxp(filemem + maxp.offset, maxp.length, &g_maxp);
 	if (err != 0) return err;
 
 	printf("version: %hu.%hu\n", g_maxp.versionInt, g_maxp.versionFrac);
@@ -258,12 +258,15 @@ int read_ttf(const char* path) {
 
 	uint32_t* loca_offsets;
 
-	err = read_loca(filemem + req_records.loca.offset, req_records.loca.length, &loca_offsets);
+	err = read_cmap(filemem + cmap.offset, cmap.length);
+	if (err != 0) return err;
 
-	puts("glyf");
+	err = read_loca(filemem + loca.offset, loca.length, &loca_offsets);
+	if (err != 0) return err;
 
-	err = read_glyf(filemem + req_records.glyf.offset, req_records.glyf.length);
-	
+	err = read_glyf(filemem + glyf.offset, glyf.length);
+	if (err != 0) return err;
+
     /*	maxPoints
 
 
@@ -358,6 +361,34 @@ int read_loca(uint8_t* fp, uint32_t length, uint32_t** offsets) {
 
 }
 
+int read_cmap(uint8_t* fp, uint32_t length) {
+	reader rdr[1] = { (reader){fp, fp+length} };
+
+	uint16_t cmap_version = read_uint16(rdr);
+	uint16_t num_subtables = read_uint16(rdr);
+
+	uint16_t plat_id;
+	uint16_t plats_id;
+	uint32_t offset = 0;
+	uint8_t* end = num_subtables * (2 + 2 + 4);
+	while(rdr->ptr < end) {
+		plat_id = read_uint16(rdr);
+		plats_id = read_uint16(rdr);
+		offset = read_uint32(rdr);
+		if (plat_id != 3) offset = 0; // microsoft
+	}
+	if (offset == 0) {
+		puts("missing microsoft encoding");
+		return -1;
+	}
+
+platform_selected:
+	// do stuff 
+
+
+
+}
+
 int read_glyf(uint8_t* fp, uint32_t length) {
 	reader rdr[1] = { (reader){fp, fp+length} };
 
@@ -449,7 +480,7 @@ int read_glyf(uint8_t* fp, uint32_t length) {
 				int16_t x;
 				if (flags & 2) { // x short?
 					uint8_t x_short = read_byte(rdr);
-					if (flags & 16) x = ((int16_t)x_short); // x same?
+					if (flags & 16) x = ((int16_t)x_short); // x same
 					else x = -((int16_t)x_short);
 				} else {
 					if (flags & 16) x = 0; // x same
