@@ -382,21 +382,28 @@ typedef struct {
 
 
 int read_loca(uint8_t* fp, uint32_t length, uint32_t** offsets) {
-	reader rdr[1] = { (reader){fp, fp+length} };
+	uint8_t* fptr = fp;
+	uint8_t* fend = fptr + length;
 
-	uint16_t glyph_count = g_maxp.numGlyphs;
-	uint32_t* out = (uint32_t*)malloc(glyph_count * 4);
+	uint16_t entry_count = g_maxp.numGlyphs + 1;
+	uint32_t* out = (uint32_t*)malloc(entry_count * 4);
 
-	if (g_head.indexToLocFormat) {
-		for (uint16_t i = 0; i < glyph_count; i++)
-			out[i] = read_uint32(rdr);
+	if (g_head.indexToLocFormat == 0) {
+		for (uint16_t i = 0; i < entry_count; i++) {
+			read16(out[i]);
+			out[i] *= 2;
+		}
 	} else {
-		for (uint16_t i = 0; i < glyph_count; i++)
-			out[i] = read_uint16(rdr) * 2;
+		for (uint16_t i = 0; i < entry_count; i++) {
+			read32(out[i]);
+		}
 	}
 	*offsets = out;
 
 	return 0;
+
+error_eof:
+	puts("loca tried to read too much");
 }
 
 int read_cmap(uint8_t* fp, uint32_t length) {
@@ -430,6 +437,8 @@ platform_selected:
 int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 	reader rdr[1] = { (reader){fp, fp+length} };
 	
+	uint8_t* fptr = fp;
+	const uint8_t* fend = fptr + length;
 
 	// maximum size of different buffers
 	uint16_t max_contours_num = g_maxp.maxContours;
@@ -469,7 +478,11 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 
 	for (uint16_t i = 0; i < num_glyphs; i++) {
 		rdr->ptr = fp + offsets[i];
-		printf("glyph #%hu\n", i);
+
+		uint8_t* fptr = fp + offsets[i];
+		const uint8_t* fend = fp + length + 50;
+
+		printf("glyph #%hu %i %i\n", i, offsets[i], offsets[i+1]);
 	
 		int16_t num_contours;
 		uint16_t intr_len;
@@ -477,35 +490,34 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 
 		int16_t xmin, ymin, xmax, ymax;
 
-		num_contours = read_int16(rdr);
-		if (num_contours < 0) { puts("glyph was a contour, font not supported\n"); fflush(stdout); continue; }
+		read16(num_contours);
+		if (num_contours < 1) { puts("glyph was a contour, character skipped\n"); continue; }
+		printf("  num contours: %hi", num_contours);
 
-		xmin = read_int16(rdr);
-		ymin = read_int16(rdr);
-		xmax = read_int16(rdr);
-		ymax = read_int16(rdr);
-
+		read16(xmin);
+		read16(ymin);
+		read16(xmax);
+		read16(ymax);
 		
-		if (num_contours > max_contours_num) { puts("contour num was greater than reported max"); return -1; }
-
-
-		read_memcpy(rdr, endpts_buf, num_contours * sizeof(uint16_t));
+		if (num_contours > max_contours_num) { printf("contour num was greater than reported max %hu %hu", num_contours, max_contours_num); return -1; }
+	
 		for(int16_t i = 0; i < num_contours; i++) {
-			endpts_buf[i] = be16toh(endpts_buf[i]);
+			read16(endpts_buf[i]);
 			printf("	%hi\n", endpts_buf[i]);
 		}
 
 		uint16_t num_coords = endpts_buf[num_contours-1]+1;
 
-		intr_len = read_uint16(rdr);
+		read16(intr_len);
 		if (intr_len > max_intr_len) { puts("intr len was greater than reported max"); return -1; }
-		read_memcpy(rdr, intr_buf, intr_len);
+		//read_memcpy(rdr, intr_buf, intr_len);
+		fptr += intr_len;
 
 		uint8_t flag_repeat = 0;
 		for (uint8_t i = 0; i < num_coords; i++) {
 			if (flag_repeat == 0) {
-				flags_buf[i] = read_byte(rdr);
-				if ( flags_buf[i] & 8 ) flag_repeat = read_byte(rdr);
+				flags_buf[i] = *(fptr++);
+				if ( flags_buf[i] & 8 ) flag_repeat = *(fptr++);
 			} else {
 				if (i == 0) { puts("tried to repeat first flag"); return -1;}
 				flags_buf[i] = flags_buf[i-1];
@@ -521,12 +533,12 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 				uint8_t flags = flags_buf[i];
 				int16_t x;
 				if (flags & 2) { // x short?
-					uint8_t x_short = read_byte(rdr);
+					uint8_t x_short = *(fptr++);
 					if (flags & 16) x = ((int16_t)x_short); // x same
 					else x = -((int16_t)x_short);
 				} else {
 					if (flags & 16) x = 0; // x same
-					else x = read_int16(rdr);
+					else { read16(x); }
 				}
 				xcoords_buf[i] = x;
 			}
@@ -538,12 +550,12 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 			uint8_t flags = flags_buf[i];
 			int16_t y;
 			if (flags & 4) { // y
-				uint8_t y_short = read_byte(rdr);
+				uint8_t y_short = *(fptr++);
 				if (flags & 32) y = ((uint16_t)y_short);
 				else y = - ((uint16_t)y_short);
 			} else {
 				if (flags & 32) y = 0;
-				else y = read_int16(rdr);
+				else { read16(y); }
 				
 			}
 			ycoords_buf[i] = y;
@@ -559,6 +571,10 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 	}
 
 	return 0;
+error_eof:
+	puts("\nerr: glyph tried to read outside its bounds");
+
+	
 }
 
 

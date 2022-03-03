@@ -1146,7 +1146,7 @@ void readglyf(FILE *f, ulong glyfofs, ulong locaofs)
 	{
 		ofs = readglyfofs(f, locaofs, i);
 		len = readglyflen(f, locaofs, i);
-		printf("    glyf %d\n    {\n", i);
+		printf("    glyf %d %lu %lu\n    {\n", i, ofs, len);
 		readoneglyf(f, glyfofs + ofs, len);
 		printf("    }\n\n");
 	}
