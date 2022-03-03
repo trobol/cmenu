@@ -483,12 +483,18 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 
 	FILE* svgp = fopen("svg_path.svg", "w");
 
-	fprintf(svgp, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" height=\"1500\"> <path stroke=\"black\" fill=\"none\" d=\"");
+	fprintf(svgp, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" transform=\"scale(1,-1)\" height=\"1500\"> <path stroke=\"black\" fill=\"none\" d=\"");
 	for (uint16_t i = 0; i < num_glyphs; i++) {
 		rdr->ptr = fp + offsets[i];
 
+		uint32_t glyph_len = offsets[i+1] - offsets[i];
+		
+		if (glyph_len == 0) {
+			printf("empty glyph %hu\n", i);
+			continue;
+		}
 		uint8_t* fptr = fp + offsets[i];
-		const uint8_t* fend = fp + length + 50;
+		const uint8_t* fend = fp + length;
 
 		//printf("glyph #%hu %i %i\n", i, offsets[i], offsets[i+1]);
 	
