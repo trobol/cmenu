@@ -1,6 +1,6 @@
 
 build:
-	gcc main.c ttf.c -Wpadded
+	gcc main.c ttf.c -Wpadded -lm 
 
 build_dump:
 	gcc ttfdump.c -o ttfdump.out

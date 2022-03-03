@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 // linux specific headers
 #include <endian.h>
@@ -414,23 +415,25 @@ int read_cmap(uint8_t* fp, uint32_t length) {
 
 	uint16_t plat_id;
 	uint16_t plats_id;
-	uint32_t offset = 0;
-	uint8_t* end = num_subtables * (2 + 2 + 4);
-	while(rdr->ptr < end) {
+	uint32_t offset;
+
+	for(uint16_t i = 0; i < num_subtables; i++) {
 		plat_id = read_uint16(rdr);
 		plats_id = read_uint16(rdr);
 		offset = read_uint32(rdr);
-		if (plat_id != 3) offset = 0; // microsoft
+		if (plat_id == 0) goto platform_selected; // microsoft platform
 	}
-	if (offset == 0) {
-		puts("missing microsoft encoding");
-		return -1;
-	}
+	
+	puts("cmap: missing microsoft encoding");
+	return -1;
+	
 
 platform_selected:
-	// do stuff 
 
 
+
+
+	return 0;
 
 }
 
@@ -480,7 +483,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 
 	FILE* svgp = fopen("svg_path.svg", "w");
 
-	fprintf(svgp, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\"> <path stroke=\"black\" fill=\"none\" d=\"");
+	fprintf(svgp, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" height=\"1500\"> <path stroke=\"black\" fill=\"none\" d=\"");
 	for (uint16_t i = 0; i < num_glyphs; i++) {
 		rdr->ptr = fp + offsets[i];
 
@@ -505,7 +508,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 		read16(ymax);
 		
 		fprintf(svgp, "M %hu 600\n", x);
-		x += xmax;
+		x += xmax + 20;
 		if (num_contours > max_contours_num) { printf("contour num was greater than reported max %hu %hu", num_contours, max_contours_num); return -1; }
 	
 		for(int16_t i = 0; i < num_contours; i++) {
@@ -571,10 +574,42 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 
 		//puts("points: ");
 		uint16_t contour_index = 0;
+		float x, y;
+		float perp_x, perp_y;
+		float back_x, back_y;
+		float len;
+
+		uint16_t contour_start = 0;
 		for(int16_t i = 0; i < num_coords; i++) {
+
+			if (i == contour_start) {
+				fprintf(svgp, "m %hi %hi\n", xcoords_buf[contour_start], ycoords_buf[contour_start]);
+				contour_start = endpts_buf[contour_index]+1;
+				continue;
+			}
+
 			fprintf(svgp, "l %hi %hi\n", xcoords_buf[i], ycoords_buf[i]);
+
+
+			x =  xcoords_buf[i];
+			y =  ycoords_buf[i];
+
+			perp_x = y;
+			perp_y = -x;
+			len = sqrtf(perp_x * perp_x + perp_y * perp_y);
+			perp_x = (perp_x / len) * 5;
+			perp_y = (perp_y / len) * 5;
+
+			back_x = (x / len) * 10;
+			back_y = (y / len) * 10;
+
+
+			fprintf(svgp, "l %f %f", -back_x + perp_x, -back_y + perp_y);
+			fprintf(svgp, "m %f %f", perp_x * -2, perp_y * -2);
+			fprintf(svgp, "l %f %f", back_x + perp_x, back_y + perp_y);
+
 			if (i == endpts_buf[contour_index]) {
-				fprintf(svgp, "l -10 -10 m 0 20 l 20 -20 m 0 20 l -10 -10"); // draw an x
+				fprintf(svgp, "l -20 -20 m 0 40 l 40 -40 m 0 40 l -20 -20"); // draw an x
 				contour_index++;
 			}
 			//printf("	%5hi %5hi\n", xcoords_buf[i], ycoords_buf[i]);
