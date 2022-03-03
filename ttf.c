@@ -70,24 +70,24 @@ typedef struct {
 
 typedef struct {
 	uint16_t	version_int;
-	uint16_t version_frac;
+	uint16_t 	version_frac;
 	uint16_t	fontRevision_int;
-	uint16_t fontRevision_frac;	
+	uint16_t 	fontRevision_frac;	
 	uint32_t	checkSumAdjustment;
 	uint32_t	magicNumber;
 	uint16_t	flags;
 	uint16_t	unitsPerEm;
-	int64_t	created;
-	int64_t	modified;
-	int16_t	xMin;
-	int16_t	yMin;
-	int16_t	xMax;
-	int16_t	yMax;
+	int64_t		created;
+	int64_t		modified;
+	int16_t		xMin;
+	int16_t		yMin;
+	int16_t		xMax;
+	int16_t		yMax;
 	uint16_t	macStyle;	
 	uint16_t	lowestRecPPEM;
-	int16_t	fontDirectionHint;
-	int16_t	indexToLocFormat;
-	int16_t	glyphDataFormat;
+	int16_t		fontDirectionHint;
+	int16_t		indexToLocFormat;
+	int16_t		glyphDataFormat;
 } TableHEAD;
 
 typedef struct {
@@ -97,9 +97,9 @@ typedef struct {
 
 
 int read_maxp(uint8_t* fp, uint32_t length, TableMAXP* maxp);
-int read_glyf(uint8_t* fp, uint32_t length);
+int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets);
 int read_loca(uint8_t* fp, uint32_t length, uint32_t** offsets);
-
+int read_head(uint8_t* fp, uint32_t length);
 
 uint8_t* read_file(const char* path, uint64_t* length);
 void free_file(long length);
@@ -120,6 +120,8 @@ void read_memcpy(reader* rdr, void* dst, size_t size) {
 	memcpy(dst, rdr->ptr, size);
 	rdr->ptr += size;
 }
+
+
 
 uint16_t read_uint16(reader* rdr) {
 	if (rdr->ptr + 2 > rdr->end) exit(1);
@@ -156,6 +158,21 @@ int32_t read_int32(reader* rdr) {
 	rdr->ptr += 4;
 	return (a << 24) | (b << 16) | (c << 8) | d; 
 }
+
+int32_t read_int64(reader* rdr) {
+	if (rdr->ptr + 8 > rdr->end) exit(1);
+	
+	
+	int64_t i = ((uint64_t)rdr->ptr[0] << 56) | ((uint64_t)rdr->ptr[1] << 48) | ((uint64_t)rdr->ptr[2] << 40) | ((uint64_t)rdr->ptr[3] << 32) | ((uint64_t)rdr->ptr[4] << 24) | ((uint64_t)rdr->ptr[5] << 16) | ((uint64_t)rdr->ptr[6] << 8) | (uint64_t)rdr->ptr[7]; 
+	rdr->ptr += 8;
+	return i;
+}
+
+
+
+#define read32(var) if (fptr + 4 > fend) goto error_eof; (var) = (fptr[0] << 24) | (fptr[1] << 16) | (fptr[2] << 8) | fptr[3]; fptr += 4;
+#define read16(var) if (fptr + 2 > fend) goto error_eof; (var) = (fptr[0] << 8) | fptr[1]; fptr += 2;
+
 
 /*
 #define read_memcpy(dst, size) if (fp + (size) > fend) return fread_err(#dst); memcpy(dst, fp, size); fp += size;
@@ -258,13 +275,20 @@ int read_ttf(const char* path) {
 
 	uint32_t* loca_offsets;
 
-	err = read_cmap(filemem + cmap.offset, cmap.length);
+	err = read_head(filemem + head.offset, head.length);
 	if (err != 0) return err;
+
+	printf("format: %hi\n", g_head.indexToLocFormat);
+	//err = read_cmap(filemem + cmap.offset, cmap.length);
+	//if (err != 0) return err;
 
 	err = read_loca(filemem + loca.offset, loca.length, &loca_offsets);
 	if (err != 0) return err;
 
-	err = read_glyf(filemem + glyf.offset, glyf.length);
+	for(uint32_t i = 0; i < g_maxp.numGlyphs; i++)
+		printf("%u ", loca_offsets[i]);
+
+	err = read_glyf(filemem + glyf.offset, glyf.length, loca_offsets);
 	if (err != 0) return err;
 
     /*	maxPoints
@@ -358,7 +382,21 @@ typedef struct {
 
 
 int read_loca(uint8_t* fp, uint32_t length, uint32_t** offsets) {
+	reader rdr[1] = { (reader){fp, fp+length} };
 
+	uint16_t glyph_count = g_maxp.numGlyphs;
+	uint32_t* out = (uint32_t*)malloc(glyph_count * 4);
+
+	if (g_head.indexToLocFormat) {
+		for (uint16_t i = 0; i < glyph_count; i++)
+			out[i] = read_uint32(rdr);
+	} else {
+		for (uint16_t i = 0; i < glyph_count; i++)
+			out[i] = read_uint16(rdr) * 2;
+	}
+	*offsets = out;
+
+	return 0;
 }
 
 int read_cmap(uint8_t* fp, uint32_t length) {
@@ -389,8 +427,9 @@ platform_selected:
 
 }
 
-int read_glyf(uint8_t* fp, uint32_t length) {
+int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 	reader rdr[1] = { (reader){fp, fp+length} };
+	
 
 	// maximum size of different buffers
 	uint16_t max_contours_num = g_maxp.maxContours;
@@ -429,6 +468,7 @@ int read_glyf(uint8_t* fp, uint32_t length) {
 
 
 	for (uint16_t i = 0; i < num_glyphs; i++) {
+		rdr->ptr = fp + offsets[i];
 		printf("glyph #%hu\n", i);
 	
 		int16_t num_contours;
@@ -438,12 +478,14 @@ int read_glyf(uint8_t* fp, uint32_t length) {
 		int16_t xmin, ymin, xmax, ymax;
 
 		num_contours = read_int16(rdr);
+		if (num_contours < 0) { puts("glyph was a contour, font not supported\n"); fflush(stdout); continue; }
+
 		xmin = read_int16(rdr);
 		ymin = read_int16(rdr);
 		xmax = read_int16(rdr);
 		ymax = read_int16(rdr);
 
-		if (num_contours < 0) { puts("glyph was a contour, font not supported\n"); return -1; }
+		
 		if (num_contours > max_contours_num) { puts("contour num was greater than reported max"); return -1; }
 
 
@@ -516,5 +558,32 @@ int read_glyf(uint8_t* fp, uint32_t length) {
 
 	}
 
-	return -1;
+	return 0;
+}
+
+
+int read_head(uint8_t* fp, uint32_t length) {
+	reader rdr[1] = { (reader){fp, fp+length} };
+
+	g_head.version_int = 		read_uint16(rdr);	
+	g_head.version_frac = 		read_uint16(rdr); 	
+	g_head.fontRevision_int = 	read_uint16(rdr);	
+	g_head.fontRevision_frac = 	read_uint16(rdr); 	
+	g_head.checkSumAdjustment = read_uint32(rdr);	
+	g_head.magicNumber = 		read_uint32(rdr);	
+	g_head.flags = 				read_uint16(rdr);	
+	g_head.unitsPerEm = 		read_uint16(rdr);	
+	g_head.created = 			read_int64(rdr);		
+	g_head.modified = 			read_int64(rdr);		
+	g_head.xMin = 				read_int16(rdr);		
+	g_head.yMin = 				read_int16(rdr);		
+	g_head.xMax = 				read_int16(rdr);		
+	g_head.yMax = 				read_int16(rdr);		
+	g_head.macStyle = 			read_uint16(rdr);	
+	g_head.lowestRecPPEM = 		read_uint16(rdr);	
+	g_head.fontDirectionHint = 	read_int16(rdr);		
+	g_head.indexToLocFormat = 	read_int16(rdr);		
+	g_head.glyphDataFormat = 	read_int16(rdr);		
+
+	return 0;
 }
