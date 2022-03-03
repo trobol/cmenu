@@ -474,15 +474,20 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 	
 	uint16_t num_glyphs = g_maxp.numGlyphs;
 	
+	puts("svg path: ");
 
+	uint32_t x = 0;
 
+	FILE* svgp = fopen("svg_path.svg", "w");
+
+	fprintf(svgp, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\"> <path stroke=\"black\" fill=\"none\" d=\"");
 	for (uint16_t i = 0; i < num_glyphs; i++) {
 		rdr->ptr = fp + offsets[i];
 
 		uint8_t* fptr = fp + offsets[i];
 		const uint8_t* fend = fp + length + 50;
 
-		printf("glyph #%hu %i %i\n", i, offsets[i], offsets[i+1]);
+		//printf("glyph #%hu %i %i\n", i, offsets[i], offsets[i+1]);
 	
 		int16_t num_contours;
 		uint16_t intr_len;
@@ -492,18 +497,20 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 
 		read16(num_contours);
 		if (num_contours < 1) { puts("glyph was a contour, character skipped\n"); continue; }
-		printf("  num contours: %hi", num_contours);
+		//printf("  num contours: %hi", num_contours);
 
 		read16(xmin);
 		read16(ymin);
 		read16(xmax);
 		read16(ymax);
 		
+		fprintf(svgp, "M %hu 600\n", x);
+		x += xmax;
 		if (num_contours > max_contours_num) { printf("contour num was greater than reported max %hu %hu", num_contours, max_contours_num); return -1; }
 	
 		for(int16_t i = 0; i < num_contours; i++) {
 			read16(endpts_buf[i]);
-			printf("	%hi\n", endpts_buf[i]);
+			//printf("	%hi\n", endpts_buf[i]);
 		}
 
 		uint16_t num_coords = endpts_buf[num_contours-1]+1;
@@ -525,8 +532,8 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 			}
 		}
 
-		printf("contours: %hu\n", num_contours);
-		printf("coords: %hu\n", num_coords);
+		//printf("contours: %hu\n", num_contours);
+		//printf("coords: %hu\n", num_coords);
 
 		{
 			for(uint16_t i = 0; i < num_coords; i++) {
@@ -562,13 +569,19 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 		}
 		}
 
-		puts("points: ");
-
+		//puts("points: ");
+		uint16_t contour_index = 0;
 		for(int16_t i = 0; i < num_coords; i++) {
-			printf("	%5hi %5hi\n", xcoords_buf[i], ycoords_buf[i]);
+			fprintf(svgp, "l %hi %hi\n", xcoords_buf[i], ycoords_buf[i]);
+			if (i == endpts_buf[contour_index]) {
+				fprintf(svgp, "l -10 -10 m 0 20 l 20 -20 m 0 20 l -10 -10"); // draw an x
+				contour_index++;
+			}
+			//printf("	%5hi %5hi\n", xcoords_buf[i], ycoords_buf[i]);
 		}
 
 	}
+	fprintf(svgp, "\"/></svg>");
 
 	return 0;
 error_eof:
