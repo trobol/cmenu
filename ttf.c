@@ -437,6 +437,48 @@ platform_selected:
 
 }
 
+// cross product: a x b
+// a.x * b.y - a.y * b.x;
+
+typedef struct { float x, y; } vec2;
+
+float vec2_cross(vec2 a, vec2 b) {
+	return a.x * b.y - a.y * b.x;
+}
+
+int intersect_lines() {
+
+	vec2 qo; // q origin
+	vec2 qd; // q direction
+
+	vec2 po; // p origin
+	vec2 pd; // p direction
+	float qox, qoy;
+	float qdx, qdy; 
+
+	float pox, poy; 
+	float pdx, pdy; 
+
+	// cross product of directions
+	float a = qdx * pdy - pdx * qdy;
+
+	if (a == 0) {
+		// lines do not cross
+		// return
+	}
+
+	float sx = qox - pox;
+	float sy = qoy - poy;
+
+	float cross_sqd = sx * qdy - sy * qdx;
+	float cross_spd = sx * pdy - sy * pdx;
+
+	float t = cross_sqd / a;
+	float u = cross_spd / a;
+
+}
+
+
 int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 	reader rdr[1] = { (reader){fp, fp+length} };
 	
