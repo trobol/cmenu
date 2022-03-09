@@ -405,6 +405,7 @@ int read_loca(uint8_t* fp, uint32_t length, uint32_t** offsets) {
 
 error_eof:
 	puts("loca tried to read too much");
+	return 1;
 }
 
 int read_cmap(uint8_t* fp, uint32_t length) {
@@ -441,37 +442,35 @@ platform_selected:
 // a.x * b.y - a.y * b.x;
 
 typedef struct { float x, y; } vec2;
+typedef struct { vec2 o, d; } ray;
 
 float vec2_cross(vec2 a, vec2 b) {
 	return a.x * b.y - a.y * b.x;
 }
 
-int intersect_lines() {
+vec2 vec2_sub(vec2 a, vec2 b) {
+	return (vec2){a.x - b.x, a.y - b.y}; 
+}
 
-	vec2 qo; // q origin
-	vec2 qd; // q direction
+void intersect_lines() {
 
-	vec2 po; // p origin
-	vec2 pd; // p direction
-	float qox, qoy;
-	float qdx, qdy; 
-
-	float pox, poy; 
-	float pdx, pdy; 
+	ray q;
+	ray p;
 
 	// cross product of directions
-	float a = qdx * pdy - pdx * qdy;
+	//float a = qdx * pdy - pdx * qdy;
+	float a = vec2_cross(q.d, p.d);
 
 	if (a == 0) {
 		// lines do not cross
 		// return
 	}
 
-	float sx = qox - pox;
-	float sy = qoy - poy;
+	vec2 s = vec2_sub(q.o, p.o);
+	
 
-	float cross_sqd = sx * qdy - sy * qdx;
-	float cross_spd = sx * pdy - sy * pdx;
+	float cross_sqd = vec2_cross(s, q.d);
+	float cross_spd = vec2_cross(s, p.d);
 
 	float t = cross_sqd / a;
 	float u = cross_spd / a;
@@ -583,6 +582,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 			}
 		}
 
+		
 		//printf("contours: %hu\n", num_contours);
 		//printf("coords: %hu\n", num_coords);
 
