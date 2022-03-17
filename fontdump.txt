@@ -500,7 +500,7 @@ post
 
 glyf
 {
-    glyf 0
+    glyf 0 0 84
     {
 	contour {
 	      20      0 on
@@ -516,7 +516,7 @@ glyf
 	}
     }
 
-    glyf 1
+    glyf 1 84 0
     {
 	contour {
 	       0    350 on
@@ -540,7 +540,7 @@ glyf
 	}
     }
 
-    glyf 2
+    glyf 2 84 0
     {
 	contour {
 	       0    350 on
@@ -564,7 +564,7 @@ glyf
 	}
     }
 
-    glyf 3
+    glyf 3 84 0
     {
 	contour {
 	       0    350 on
@@ -588,7 +588,7 @@ glyf
 	}
     }
 
-    glyf 4
+    glyf 4 84 0
     {
 	contour {
 	       0    350 on
@@ -612,7 +612,7 @@ glyf
 	}
     }
 
-    glyf 5
+    glyf 5 84 0
     {
 	contour {
 	       0    350 on
@@ -636,7 +636,7 @@ glyf
 	}
     }
 
-    glyf 6
+    glyf 6 84 0
     {
 	contour {
 	       0    350 on
@@ -660,7 +660,7 @@ glyf
 	}
     }
 
-    glyf 7
+    glyf 7 84 0
     {
 	contour {
 	       0    350 on
@@ -684,7 +684,7 @@ glyf
 	}
     }
 
-    glyf 8
+    glyf 8 84 0
     {
 	contour {
 	       0    350 on
@@ -708,7 +708,7 @@ glyf
 	}
     }
 
-    glyf 9
+    glyf 9 84 0
     {
 	contour {
 	       0    350 on
@@ -732,7 +732,7 @@ glyf
 	}
     }
 
-    glyf 10
+    glyf 10 84 0
     {
 	contour {
 	       0    350 on
@@ -756,7 +756,7 @@ glyf
 	}
     }
 
-    glyf 11
+    glyf 11 84 0
     {
 	contour {
 	       0    350 on
@@ -780,7 +780,7 @@ glyf
 	}
     }
 
-    glyf 12
+    glyf 12 84 0
     {
 	contour {
 	       0    350 on
@@ -804,7 +804,7 @@ glyf
 	}
     }
 
-    glyf 13
+    glyf 13 84 0
     {
 	contour {
 	       0    350 on
@@ -828,7 +828,7 @@ glyf
 	}
     }
 
-    glyf 14
+    glyf 14 84 0
     {
 	contour {
 	       0    350 on
@@ -852,7 +852,7 @@ glyf
 	}
     }
 
-    glyf 15
+    glyf 15 84 0
     {
 	contour {
 	       0    350 on
@@ -876,7 +876,7 @@ glyf
 	}
     }
 
-    glyf 16
+    glyf 16 84 0
     {
 	contour {
 	       0    350 on
@@ -900,7 +900,7 @@ glyf
 	}
     }
 
-    glyf 17
+    glyf 17 84 0
     {
 	contour {
 	       0    350 on
@@ -924,7 +924,7 @@ glyf
 	}
     }
 
-    glyf 18
+    glyf 18 84 0
     {
 	contour {
 	       0    350 on
@@ -948,7 +948,7 @@ glyf
 	}
     }
 
-    glyf 19
+    glyf 19 84 0
     {
 	contour {
 	       0    350 on
@@ -972,7 +972,7 @@ glyf
 	}
     }
 
-    glyf 20
+    glyf 20 84 0
     {
 	contour {
 	       0    350 on
@@ -996,7 +996,7 @@ glyf
 	}
     }
 
-    glyf 21
+    glyf 21 84 0
     {
 	contour {
 	       0    350 on
@@ -1020,7 +1020,7 @@ glyf
 	}
     }
 
-    glyf 22
+    glyf 22 84 0
     {
 	contour {
 	       0    350 on
@@ -1044,7 +1044,7 @@ glyf
 	}
     }
 
-    glyf 23
+    glyf 23 84 0
     {
 	contour {
 	       0    350 on
@@ -1068,7 +1068,7 @@ glyf
 	}
     }
 
-    glyf 24
+    glyf 24 84 0
     {
 	contour {
 	       0    350 on
@@ -1092,7 +1092,7 @@ glyf
 	}
     }
 
-    glyf 25
+    glyf 25 84 0
     {
 	contour {
 	       0    350 on
@@ -1116,7 +1116,7 @@ glyf
 	}
     }
 
-    glyf 26
+    glyf 26 84 0
     {
 	contour {
 	       0    350 on
@@ -1140,7 +1140,7 @@ glyf
 	}
     }
 
-    glyf 27
+    glyf 27 84 0
     {
 	contour {
 	       0    350 on
@@ -1164,7 +1164,7 @@ glyf
 	}
     }
 
-    glyf 28
+    glyf 28 84 0
     {
 	contour {
 	       0    350 on
@@ -1188,7 +1188,7 @@ glyf
 	}
     }
 
-    glyf 29
+    glyf 29 84 0
     {
 	contour {
 	       0    350 on
@@ -1212,7 +1212,7 @@ glyf
 	}
     }
 
-    glyf 30
+    glyf 30 84 0
     {
 	contour {
 	       0    350 on
@@ -1236,7 +1236,7 @@ glyf
 	}
     }
 
-    glyf 31
+    glyf 31 84 0
     {
 	contour {
 	       0    350 on
@@ -1260,7 +1260,7 @@ glyf
 	}
     }
 
-    glyf 32
+    glyf 32 84 0
     {
 	contour {
 	       0    350 on
@@ -1284,7 +1284,7 @@ glyf
 	}
     }
 
-    glyf 33
+    glyf 33 84 0
     {
 	contour {
 	       0    350 on
@@ -1308,7 +1308,7 @@ glyf
 	}
     }
 
-    glyf 34
+    glyf 34 84 52
     {
 	contour {
 	       0    350 on
@@ -1332,7 +1332,7 @@ glyf
 	}
     }
 
-    glyf 35
+    glyf 35 136 52
     {
 	contour {
 	       0    400 on
@@ -1356,7 +1356,7 @@ glyf
 	}
     }
 
-    glyf 36
+    glyf 36 188 148
     {
 	contour {
 	     100    450 on
@@ -1428,7 +1428,7 @@ glyf
 	}
     }
 
-    glyf 37
+    glyf 37 336 96
     {
 	contour {
 	     100    450 on
@@ -1474,7 +1474,7 @@ glyf
 	}
     }
 
-    glyf 38
+    glyf 38 432 84
     {
 	contour {
 	       0    450 on
@@ -1516,7 +1516,7 @@ glyf
 	}
     }
 
-    glyf 39
+    glyf 39 516 96
     {
 	contour {
 	     100    400 on
@@ -1562,7 +1562,7 @@ glyf
 	}
     }
 
-    glyf 40
+    glyf 40 612 32
     {
 	contour {
 	       0    400 on
@@ -1576,7 +1576,7 @@ glyf
 	}
     }
 
-    glyf 41
+    glyf 41 644 64
     {
 	contour {
 	     100    450 on
@@ -1606,7 +1606,7 @@ glyf
 	}
     }
 
-    glyf 42
+    glyf 42 708 64
     {
 	contour {
 	       0    450 on
@@ -1636,7 +1636,7 @@ glyf
 	}
     }
 
-    glyf 43
+    glyf 43 772 96
     {
 	contour {
 	       0    450 on
@@ -1682,7 +1682,7 @@ glyf
 	}
     }
 
-    glyf 44
+    glyf 44 868 64
     {
 	contour {
 	     100    350 on
@@ -1712,7 +1712,7 @@ glyf
 	}
     }
 
-    glyf 45
+    glyf 45 932 32
     {
 	contour {
 	       0      0 on
@@ -1726,7 +1726,7 @@ glyf
 	}
     }
 
-    glyf 46
+    glyf 46 964 32
     {
 	contour {
 	       0    250 on
@@ -1740,7 +1740,7 @@ glyf
 	}
     }
 
-    glyf 47
+    glyf 47 996 32
     {
 	contour {
 	       0     50 on
@@ -1754,7 +1754,7 @@ glyf
 	}
     }
 
-    glyf 48
+    glyf 48 1028 64
     {
 	contour {
 	     200    400 on
@@ -1784,7 +1784,7 @@ glyf
 	}
     }
 
-    glyf 49
+    glyf 49 1092 68
     {
 	contour {
 	     100    450 on
@@ -1816,7 +1816,7 @@ glyf
 	}
     }
 
-    glyf 50
+    glyf 50 1160 56
     {
 	contour {
 	       0    450 on
@@ -1842,7 +1842,7 @@ glyf
 	}
     }
 
-    glyf 51
+    glyf 51 1216 64
     {
 	contour {
 	       0    450 on
@@ -1872,7 +1872,7 @@ glyf
 	}
     }
 
-    glyf 52
+    glyf 52 1280 64
     {
 	contour {
 	       0    450 on
@@ -1902,7 +1902,7 @@ glyf
 	}
     }
 
-    glyf 53
+    glyf 53 1344 56
     {
 	contour {
 	       0    350 on
@@ -1928,7 +1928,7 @@ glyf
 	}
     }
 
-    glyf 54
+    glyf 54 1400 64
     {
 	contour {
 	       0    350 on
@@ -1958,7 +1958,7 @@ glyf
 	}
     }
 
-    glyf 55
+    glyf 55 1464 68
     {
 	contour {
 	       0    250 on
@@ -1990,7 +1990,7 @@ glyf
 	}
     }
 
-    glyf 56
+    glyf 56 1532 48
     {
 	contour {
 	       0    400 on
@@ -2012,7 +2012,7 @@ glyf
 	}
     }
 
-    glyf 57
+    glyf 57 1580 68
     {
 	contour {
 	       0    250 on
@@ -2046,7 +2046,7 @@ glyf
 	}
     }
 
-    glyf 58
+    glyf 58 1648 68
     {
 	contour {
 	       0    350 on
@@ -2078,7 +2078,7 @@ glyf
 	}
     }
 
-    glyf 59
+    glyf 59 1716 48
     {
 	contour {
 	       0    250 on
@@ -2102,7 +2102,7 @@ glyf
 	}
     }
 
-    glyf 60
+    glyf 60 1764 48
     {
 	contour {
 	       0    250 on
@@ -2126,7 +2126,7 @@ glyf
 	}
     }
 
-    glyf 61
+    glyf 61 1812 96
     {
 	contour {
 	     200    450 on
@@ -2172,7 +2172,7 @@ glyf
 	}
     }
 
-    glyf 62
+    glyf 62 1908 52
     {
 	contour {
 	       0    350 on
@@ -2196,7 +2196,7 @@ glyf
 	}
     }
 
-    glyf 63
+    glyf 63 1960 96
     {
 	contour {
 	       0    450 on
@@ -2242,7 +2242,7 @@ glyf
 	}
     }
 
-    glyf 64
+    glyf 64 2056 68
     {
 	contour {
 	       0    450 on
@@ -2274,7 +2274,7 @@ glyf
 	}
     }
 
-    glyf 65
+    glyf 65 2124 128
     {
 	contour {
 	     100    450 on
@@ -2336,7 +2336,7 @@ glyf
 	}
     }
 
-    glyf 66
+    glyf 66 2252 68
     {
 	contour {
 	       0    250 on
@@ -2368,7 +2368,7 @@ glyf
 	}
     }
 
-    glyf 67
+    glyf 67 2320 84
     {
 	contour {
 	       0    250 on
@@ -2410,7 +2410,7 @@ glyf
 	}
     }
 
-    glyf 68
+    glyf 68 2404 48
     {
 	contour {
 	       0    250 on
@@ -2432,7 +2432,7 @@ glyf
 	}
     }
 
-    glyf 69
+    glyf 69 2452 68
     {
 	contour {
 	       0    250 on
@@ -2464,7 +2464,7 @@ glyf
 	}
     }
 
-    glyf 70
+    glyf 70 2520 64
     {
 	contour {
 	       0    250 on
@@ -2494,7 +2494,7 @@ glyf
 	}
     }
 
-    glyf 71
+    glyf 71 2584 56
     {
 	contour {
 	       0    250 on
@@ -2520,7 +2520,7 @@ glyf
 	}
     }
 
-    glyf 72
+    glyf 72 2640 56
     {
 	contour {
 	       0    250 on
@@ -2546,7 +2546,7 @@ glyf
 	}
     }
 
-    glyf 73
+    glyf 73 2696 64
     {
 	contour {
 	       0    250 on
@@ -2576,7 +2576,7 @@ glyf
 	}
     }
 
-    glyf 74
+    glyf 74 2760 64
     {
 	contour {
 	       0    450 on
@@ -2606,7 +2606,7 @@ glyf
 	}
     }
 
-    glyf 75
+    glyf 75 2824 48
     {
 	contour {
 	     200    300 on
@@ -2628,7 +2628,7 @@ glyf
 	}
     }
 
-    glyf 76
+    glyf 76 2872 80
     {
 	contour {
 	       0    250 on
@@ -2666,7 +2666,7 @@ glyf
 	}
     }
 
-    glyf 77
+    glyf 77 2952 40
     {
 	contour {
 	       0    250 on
@@ -2684,7 +2684,7 @@ glyf
 	}
     }
 
-    glyf 78
+    glyf 78 2992 64
     {
 	contour {
 	       0    250 on
@@ -2714,7 +2714,7 @@ glyf
 	}
     }
 
-    glyf 79
+    glyf 79 3056 48
     {
 	contour {
 	       0    250 on
@@ -2736,7 +2736,7 @@ glyf
 	}
     }
 
-    glyf 80
+    glyf 80 3104 52
     {
 	contour {
 	       0    250 on
@@ -2760,7 +2760,7 @@ glyf
 	}
     }
 
-    glyf 81
+    glyf 81 3156 60
     {
 	contour {
 	       0    250 on
@@ -2788,7 +2788,7 @@ glyf
 	}
     }
 
-    glyf 82
+    glyf 82 3216 76
     {
 	contour {
 	       0    250 on
@@ -2824,7 +2824,7 @@ glyf
 	}
     }
 
-    glyf 83
+    glyf 83 3292 84
     {
 	contour {
 	       0    250 on
@@ -2864,7 +2864,7 @@ glyf
 	}
     }
 
-    glyf 84
+    glyf 84 3376 48
     {
 	contour {
 	     100    300 on
@@ -2886,7 +2886,7 @@ glyf
 	}
     }
 
-    glyf 85
+    glyf 85 3424 48
     {
 	contour {
 	       0    450 on
@@ -2908,7 +2908,7 @@ glyf
 	}
     }
 
-    glyf 86
+    glyf 86 3472 48
     {
 	contour {
 	       0    250 on
@@ -2930,7 +2930,7 @@ glyf
 	}
     }
 
-    glyf 87
+    glyf 87 3520 64
     {
 	contour {
 	       0    300 on
@@ -2960,7 +2960,7 @@ glyf
 	}
     }
 
-    glyf 88
+    glyf 88 3584 64
     {
 	contour {
 	       0    250 on
@@ -2990,7 +2990,7 @@ glyf
 	}
     }
 
-    glyf 89
+    glyf 89 3648 96
     {
 	contour {
 	       0    400 on
@@ -3036,7 +3036,7 @@ glyf
 	}
     }
 
-    glyf 90
+    glyf 90 3744 64
     {
 	contour {
 	       0    350 on
@@ -3066,7 +3066,7 @@ glyf
 	}
     }
 
-    glyf 91
+    glyf 91 3808 48
     {
 	contour {
 	       0    450 on
@@ -3088,7 +3088,7 @@ glyf
 	}
     }
 
-    glyf 92
+    glyf 92 3856 48
     {
 	contour {
 	       0    250 on
@@ -3110,7 +3110,7 @@ glyf
 	}
     }
 
-    glyf 93
+    glyf 93 3904 64
     {
 	contour {
 	       0    400 on
@@ -3140,7 +3140,7 @@ glyf
 	}
     }
 
-    glyf 94
+    glyf 94 3968 48
     {
 	contour {
 	       0    450 on
@@ -3162,7 +3162,7 @@ glyf
 	}
     }
 
-    glyf 95
+    glyf 95 4016 64
     {
 	contour {
 	     100    450 on
@@ -3192,7 +3192,7 @@ glyf
 	}
     }
 
-    glyf 96
+    glyf 96 4080 32
     {
 	contour {
 	       0    -50 on
@@ -3206,7 +3206,7 @@ glyf
 	}
     }
 
-    glyf 97
+    glyf 97 4112 48
     {
 	contour {
 	       0    450 on
@@ -3228,7 +3228,7 @@ glyf
 	}
     }
 
-    glyf 98
+    glyf 98 4160 68
     {
 	contour {
 	     100    350 on
@@ -3260,7 +3260,7 @@ glyf
 	}
     }
 
-    glyf 99
+    glyf 99 4228 60
     {
 	contour {
 	       0    250 on
@@ -3288,7 +3288,7 @@ glyf
 	}
     }
 
-    glyf 100
+    glyf 100 4288 48
     {
 	contour {
 	       0    200 on
@@ -3310,7 +3310,7 @@ glyf
 	}
     }
 
-    glyf 101
+    glyf 101 4336 60
     {
 	contour {
 	     200    450 on
@@ -3338,7 +3338,7 @@ glyf
 	}
     }
 
-    glyf 102
+    glyf 102 4396 84
     {
 	contour {
 	     100    350 on
@@ -3378,7 +3378,7 @@ glyf
 	}
     }
 
-    glyf 103
+    glyf 103 4480 72
     {
 	contour {
 	     100    400 on
@@ -3412,7 +3412,7 @@ glyf
 	}
     }
 
-    glyf 104
+    glyf 104 4552 84
     {
 	contour {
 	     100    350 on
@@ -3452,7 +3452,7 @@ glyf
 	}
     }
 
-    glyf 105
+    glyf 105 4636 56
     {
 	contour {
 	       0    250 on
@@ -3478,7 +3478,7 @@ glyf
 	}
     }
 
-    glyf 106
+    glyf 106 4692 32
     {
 	contour {
 	       0    200 on
@@ -3492,7 +3492,7 @@ glyf
 	}
     }
 
-    glyf 107
+    glyf 107 4724 48
     {
 	contour {
 	     200    200 on
@@ -3514,7 +3514,7 @@ glyf
 	}
     }
 
-    glyf 108
+    glyf 108 4772 80
     {
 	contour {
 	       0    250 on
@@ -3552,7 +3552,7 @@ glyf
 	}
     }
 
-    glyf 109
+    glyf 109 4852 32
     {
 	contour {
 	       0    250 on
@@ -3566,7 +3566,7 @@ glyf
 	}
     }
 
-    glyf 110
+    glyf 110 4884 64
     {
 	contour {
 	       0    200 on
@@ -3596,7 +3596,7 @@ glyf
 	}
     }
 
-    glyf 111
+    glyf 111 4948 48
     {
 	contour {
 	       0    200 on
@@ -3618,7 +3618,7 @@ glyf
 	}
     }
 
-    glyf 112
+    glyf 112 4996 52
     {
 	contour {
 	       0    200 on
@@ -3642,7 +3642,7 @@ glyf
 	}
     }
 
-    glyf 113
+    glyf 113 5048 60
     {
 	contour {
 	       0    150 on
@@ -3670,7 +3670,7 @@ glyf
 	}
     }
 
-    glyf 114
+    glyf 114 5108 76
     {
 	contour {
 	     100    350 on
@@ -3706,7 +3706,7 @@ glyf
 	}
     }
 
-    glyf 115
+    glyf 115 5184 48
     {
 	contour {
 	       0    200 on
@@ -3728,7 +3728,7 @@ glyf
 	}
     }
 
-    glyf 116
+    glyf 116 5232 48
     {
 	contour {
 	     100    250 on
@@ -3750,7 +3750,7 @@ glyf
 	}
     }
 
-    glyf 117
+    glyf 117 5280 72
     {
 	contour {
 	     100    450 on
@@ -3784,7 +3784,7 @@ glyf
 	}
     }
 
-    glyf 118
+    glyf 118 5352 48
     {
 	contour {
 	       0    200 on
@@ -3806,7 +3806,7 @@ glyf
 	}
     }
 
-    glyf 119
+    glyf 119 5400 64
     {
 	contour {
 	       0    250 on
@@ -3836,7 +3836,7 @@ glyf
 	}
     }
 
-    glyf 120
+    glyf 120 5464 64
     {
 	contour {
 	       0    200 on
@@ -3866,7 +3866,7 @@ glyf
 	}
     }
 
-    glyf 121
+    glyf 121 5528 96
     {
 	contour {
 	       0    350 on
@@ -3912,7 +3912,7 @@ glyf
 	}
     }
 
-    glyf 122
+    glyf 122 5624 72
     {
 	contour {
 	       0    250 on
@@ -3946,7 +3946,7 @@ glyf
 	}
     }
 
-    glyf 123
+    glyf 123 5696 48
     {
 	contour {
 	       0    350 on
@@ -3968,7 +3968,7 @@ glyf
 	}
     }
 
-    glyf 124
+    glyf 124 5744 64
     {
 	contour {
 	     100    400 on
@@ -3998,7 +3998,7 @@ glyf
 	}
     }
 
-    glyf 125
+    glyf 125 5808 52
     {
 	contour {
 	       0    400 on
@@ -4022,7 +4022,7 @@ glyf
 	}
     }
 
-    glyf 126
+    glyf 126 5860 64
     {
 	contour {
 	       0    450 on
@@ -4052,7 +4052,7 @@ glyf
 	}
     }
 
-    glyf 127
+    glyf 127 5924 48
     {
 	contour {
 	       0    250 on
@@ -4074,7 +4074,7 @@ glyf
 	}
     }
 
-    glyf 128
+    glyf 128 5972 0
     {
 	subr 49152      0     13 (pt) [0.90 0.00 0.00 0.01]
 	subr     2   -100      1 (pt) [1.00 0.00 0.00 1.00]

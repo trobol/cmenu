@@ -187,6 +187,7 @@ int32_t read_int64(reader* rdr) {
 TableMAXP g_maxp;
 TableHEAD g_head;
 
+
 TableDirRecord find_required_record(const char* tag_str, TableDirRecord* records, uint32_t* tags, uint16_t count) {
 	TableDirRecord table = find_table_record(tag_str, records, tags, count);
 	if (table.length == 0) { printf("missing table %s\n", tag_str); exit(1); }
@@ -370,6 +371,14 @@ int read_maxp(uint8_t* fp, uint32_t length, TableMAXP* maxp) {
 }
 
 
+enum SimpleGlyfFlags {
+	SGLYFFLAGS_ONCURVE = 1,
+	SGLYFFLAGS_SHORTX = 2,
+	SGLYFFLAGS_SHORTY = 4,
+	SGLYFFLAGS_REPEAT = 8,
+	SGLYFFLAGS_SAMEX = 16,
+	SGLYFFLAGS_SAMEY = 32,
+};
 
 typedef struct {
 	uint8_t on_curve : 1;
@@ -476,7 +485,17 @@ int intersect_lines() {
 	float t = cross_sqd / a;
 	float u = cross_spd / a;
 
+	
+	
 }
+
+typedef struct {
+	uint16_t x, y;
+} vec2i;
+typedef struct {
+	uint16_t line_count;
+	vec2i* lines;
+} Glyph;
 
 
 int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
@@ -490,14 +509,13 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 	uint16_t max_endpts_len = max_contours_num * 2; // 16 bits
 	uint16_t max_intr_len = g_maxp.maxSizeOfInstructions;
 	uint16_t max_flags_len = g_maxp.maxPoints * 2; // not sure if this is actually the max, this is if each point has a flag and a number to continue
-	uint16_t max_coords_len = g_maxp.maxPoints * 2; // most is if each coords is 2 bytes
+	uint16_t max_coords_len = g_maxp.maxPoints * sizeof(vec2i);
 	uint8_t* buffer = (uint8_t*)malloc((size_t)max_intr_len + (size_t)max_endpts_len + (size_t)max_flags_len + (size_t)max_coords_len + (size_t)max_coords_len);
 	
 	uint16_t* endpts_buf = (uint16_t*)buffer;
 	uint8_t* intr_buf = ((uint8_t*)endpts_buf) + max_endpts_len;
 	uint8_t* flags_buf = intr_buf + max_intr_len;
-	int16_t* xcoords_buf = (int16_t*)(flags_buf + max_flags_len);
-	int16_t* ycoords_buf = (int16_t*)(((uint8_t*)xcoords_buf) + max_coords_len);
+	vec2i* coords_buf = (vec2i*)(flags_buf + max_flags_len);
 
 
 	// two types of glyphs: simple and compound
@@ -575,7 +593,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 		for (uint8_t i = 0; i < num_coords; i++) {
 			if (flag_repeat == 0) {
 				flags_buf[i] = *(fptr++);
-				if ( flags_buf[i] & 8 ) flag_repeat = *(fptr++);
+				if ( flags_buf[i] & SGLYFFLAGS_REPEAT ) flag_repeat = *(fptr++);
 			} else {
 				if (i == 0) { puts("tried to repeat first flag"); return -1;}
 				flags_buf[i] = flags_buf[i-1];
@@ -586,38 +604,48 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 		//printf("contours: %hu\n", num_contours);
 		//printf("coords: %hu\n", num_coords);
 
+		// these next two sections are obtuse
+		// but in my defence they are much faster because they are branchless
 		{
+			uint16_t j = 0;
 			for(uint16_t i = 0; i < num_coords; i++) {
 				uint8_t flags = flags_buf[i];
-				int16_t x;
-				if (flags & 2) { // x short?
-					uint8_t x_short = *(fptr++);
-					if (flags & 16) x = ((int16_t)x_short); // x same
-					else x = -((int16_t)x_short);
-				} else {
-					if (flags & 16) x = 0; // x same
-					else { read16(x); }
-				}
-				xcoords_buf[i] = x;
+
+				uint16_t sh = ~(((flags & SGLYFFLAGS_SHORTX) >> 1)-1); // every bit is 1 if short flag is set, zero otherwise
+				uint16_t n_sm = ((flags & SGLYFFLAGS_SAMEX) >> 4)-1;   // every bit is 1 if same flag is NOT set, zero otherwise
+
+				uint16_t x_0 = fptr[j] & ~sh & n_sm; // zero if not short and not same
+				uint16_t x_1 = fptr[j+1] & ~sh & n_sm; // ^
+				x_1 += (fptr[j] & sh ^ n_sm) + (1 & n_sm); // if short flag, xor with n_sm computes ones complement, add one if negative for twos complement
+				
+				j += 2;
+				j -= sh & 1;
+				j -= (~n_sm & ~sh) & 2;
+
+				coords_buf[i].x = x_0 << 8 | x_1;
 			}
+			fptr += j;
 		}
 
 		{
+			uint16_t j = 0;
+			for(uint16_t i = 0; i < num_coords; i++) {
+				uint8_t flags = flags_buf[i];
 
-		for(uint16_t i = 0; i < num_coords; i++) {
-			uint8_t flags = flags_buf[i];
-			int16_t y;
-			if (flags & 4) { // y
-				uint8_t y_short = *(fptr++);
-				if (flags & 32) y = ((uint16_t)y_short);
-				else y = - ((uint16_t)y_short);
-			} else {
-				if (flags & 32) y = 0;
-				else { read16(y); }
-				
+				uint16_t sh = ~(((flags & SGLYFFLAGS_SHORTY) >> 2)-1);
+				uint16_t n_sm = ((flags & SGLYFFLAGS_SAMEY) >> 5)-1;
+
+				uint16_t y_0 = fptr[j] & ~sh & n_sm;
+				uint16_t y_1 = fptr[j+1] & ~sh & n_sm;
+				y_1 += (fptr[j] & sh ^ n_sm) + (1 & n_sm);
+
+				j += 2;
+				j -= sh & 1;
+				j -= (~n_sm & ~sh) & 2;
+
+				coords_buf[i].y = y_0 << 8 | y_1;
 			}
-			ycoords_buf[i] = y;
-		}
+			fptr += j;
 		}
 
 		//puts("points: ");
@@ -631,16 +659,16 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 		for(int16_t i = 0; i < num_coords; i++) {
 
 			if (i == contour_start) {
-				fprintf(svgp, "m %hi %hi\n", xcoords_buf[contour_start], ycoords_buf[contour_start]);
+				fprintf(svgp, "m %hi %hi\n", coords_buf[contour_start].x, coords_buf[contour_start].y);
 				contour_start = endpts_buf[contour_index]+1;
 				continue;
 			}
 
-			fprintf(svgp, "l %hi %hi\n", xcoords_buf[i], ycoords_buf[i]);
+			fprintf(svgp, "l %hi %hi\n", coords_buf[i].x, coords_buf[i].y);
 
 
-			x =  xcoords_buf[i];
-			y =  ycoords_buf[i];
+			x = coords_buf[i].x;
+			y = coords_buf[i].y;
 
 			perp_x = y;
 			perp_y = -x;
