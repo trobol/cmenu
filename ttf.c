@@ -97,10 +97,28 @@ typedef struct {
 } reader;
 
 
+typedef struct {
+	uint16_t x, y;
+} vec2i;
+typedef struct {
+	uint16_t points_start;
+	uint16_t points_end;
+	vec2i min;
+	vec2i max;
+} Glyph;
+
+typedef struct {
+	Glyph* glyphs;
+	vec2i* points;
+	uint16_t points_count;
+} TTF_Data;
+
+
+
 int read_maxp(uint8_t* fp, uint32_t length, TableMAXP* maxp);
-int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets);
-int read_loca(uint8_t* fp, uint32_t length, uint32_t** offsets);
-int read_head(uint8_t* fp, uint32_t length);
+int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, TTF_Data* data);
+int read_loca(uint8_t* fp, uint32_t length, uint32_t* offsets, uint16_t num_glyphs, int16_t indexToLocFormat);
+int read_head(uint8_t* fp, uint32_t length, TableHEAD* head);
 
 uint8_t* read_file(const char* path, uint64_t* length);
 void free_file(long length);
@@ -184,7 +202,6 @@ int32_t read_int64(reader* rdr) {
 #define read_int16(var) 
 
 */
-TableMAXP g_maxp;
 TableHEAD g_head;
 
 
@@ -193,6 +210,8 @@ TableDirRecord find_required_record(const char* tag_str, TableDirRecord* records
 	if (table.length == 0) { printf("missing table %s\n", tag_str); exit(1); }
 	return table;
 }
+
+
 
 
 int read_ttf(const char* path) {
@@ -228,31 +247,16 @@ int read_ttf(const char* path) {
 	read_memcpy(rdr, records, sizeof(TableDirRecord) * td.numTables);
 	
 
-    for(uint16_t i = 0; i < td.numTables; i++) {
-        TableDirRecord* r = records+i;
+	for(uint16_t i = 0; i < td.numTables; i++) {
+		TableDirRecord* r = records+i;
 		tags[i] = r->tableTag;
 		
 		printf("%.4s\n", &r->tableTag);
-		// we dont change endianess of tableTag because its basically byte[4]
+		// we dont change endianess of tableTag because its basically char[4]
 		r->checksum = be32toh( r->checksum);
 		r->offset = be32toh(r->offset);
 		r->length = be32toh(r->length);
-    }
-    
-	union {
-		TableDirRecord records[8];
-		struct {
-			TableDirRecord maxp;
-			TableDirRecord glyf;
-			TableDirRecord cmap;
-			TableDirRecord loca;
-			TableDirRecord name;
-			TableDirRecord head;
-			TableDirRecord hhea;
-			TableDirRecord hmtx;
-		};
-	} req_records;
-	
+	}
     
    	TableDirRecord maxp = find_table_record("maxp", records, tags, td.numTables);
 	TableDirRecord glyf = find_table_record("glyf", records, tags, td.numTables);
@@ -263,34 +267,38 @@ int read_ttf(const char* path) {
 	TableDirRecord hhea = find_table_record("hhea", records, tags, td.numTables);
 	TableDirRecord hmtx = find_table_record("hmtx", records, tags, td.numTables);
 
-
+	TableMAXP table_maxp;
+	TableHEAD table_head;
 	int err; 
-	err = read_maxp(filemem + maxp.offset, maxp.length, &g_maxp);
+	err = read_maxp(filemem + maxp.offset, maxp.length, &table_maxp);
 	if (err != 0) return err;
 
-	printf("version: %hu.%hu\n", g_maxp.versionInt, g_maxp.versionFrac);
+	printf("version: %hu.%hu\n", table_maxp.versionInt, table_maxp.versionFrac);
 
-	printf("glyph count: %hu\n", g_maxp.numGlyphs);
-	printf("max contours: %hu\n", g_maxp.maxContours);
-	printf("max points: %hu\n", g_maxp.maxPoints);
-	printf("max component depth: %hu\n", g_maxp.maxComponentDepth);
+	printf("glyph count: %hu\n", table_maxp.numGlyphs);
+	printf("max contours: %hu\n", table_maxp.maxContours);
+	printf("max points: %hu\n", table_maxp.maxPoints);
+	printf("max component depth: %hu\n", table_maxp.maxComponentDepth);
 
-	uint32_t* loca_offsets;
+	
 
-	err = read_head(filemem + head.offset, head.length);
+	err = read_head(filemem + head.offset, head.length, &table_head);
 	if (err != 0) return err;
 
 	printf("format: %hi\n", g_head.indexToLocFormat);
 	//err = read_cmap(filemem + cmap.offset, cmap.length);
 	//if (err != 0) return err;
 
-	err = read_loca(filemem + loca.offset, loca.length, &loca_offsets);
+	uint16_t num_offsets = table_maxp.numGlyphs + 1;
+	uint32_t* loca_offsets = (uint32_t*)calloc(num_offsets, sizeof(uint32_t));
+	
+	err = read_loca(filemem + loca.offset, loca.length, loca_offsets, num_offsets, table_head.indexToLocFormat);
 	if (err != 0) return err;
 
-	for(uint32_t i = 0; i < g_maxp.numGlyphs; i++)
-		printf("%u ", loca_offsets[i]);
+	TTF_Data ttf_data;
+	ttf_data.glyphs = (Glyph*)calloc(table_maxp.numGlyphs, sizeof(Glyph));
 
-	err = read_glyf(filemem + glyf.offset, glyf.length, loca_offsets);
+	err = read_glyf(filemem + glyf.offset, glyf.length, loca_offsets, table_maxp, &ttf_data);
 	if (err != 0) return err;
 
     /*	maxPoints
@@ -314,6 +322,61 @@ int read_ttf(const char* path) {
     //   read section to buffer
     //   parse buffer into structures
 
+	
+	FILE* svgp = fopen("svg_path.svg", "w");
+
+	fprintf(svgp, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" transform=\"scale(1,-1)\" height=\"1500\"> <path stroke=\"black\" fill=\"none\" d=\"");
+
+	
+	fprintf(svgp, "M %hu 600\n", x);
+	x += xmax + 20;
+	/*
+		//puts("points: ");
+		uint16_t contour_index = 0;
+		float x, y;
+		float perp_x, perp_y;
+		float back_x, back_y;
+		float len;
+
+		uint16_t contour_start = 0;
+		for(int16_t i = 0; i < num_coords; i++) {
+
+			if (i == contour_start) {
+				fprintf(svgp, "m %hi %hi\n", coords_buf[contour_start].x, coords_buf[contour_start].y);
+				contour_start = endpts_buf[contour_index]+1;
+				continue;
+			}
+
+			fprintf(svgp, "l %hi %hi\n", coords_buf[i].x, coords_buf[i].y);
+
+
+			x = coords_buf[i].x;
+			y = coords_buf[i].y;
+
+			perp_x = y;
+			perp_y = -x;
+			len = sqrtf(perp_x * perp_x + perp_y * perp_y);
+			perp_x = (perp_x / len) * 5;
+			perp_y = (perp_y / len) * 5;
+
+			back_x = (x / len) * 10;
+			back_y = (y / len) * 10;
+
+
+			fprintf(svgp, "l %f %f", -back_x + perp_x, -back_y + perp_y);
+			fprintf(svgp, "m %f %f", perp_x * -2, perp_y * -2);
+			fprintf(svgp, "l %f %f", back_x + perp_x, back_y + perp_y);
+
+			if (i == endpts_buf[contour_index]) {
+				fprintf(svgp, "l -20 -20 m 0 40 l 40 -40 m 0 40 l -20 -20"); // draw an x
+				contour_index++;
+			}
+		
+		}
+
+	}
+	fprintf(svgp, "\"/></svg>");
+	*/
 }
 
 uint8_t* read_file(const char* path, uint64_t* length) {
@@ -391,24 +454,20 @@ typedef struct {
 } SimpleGlyfFlags;
 
 
-int read_loca(uint8_t* fp, uint32_t length, uint32_t** offsets) {
+int read_loca(uint8_t* fp, uint32_t length, uint32_t* offsets, uint16_t num_offsets, int16_t indexToLocFormat) {
 	uint8_t* fptr = fp;
 	uint8_t* fend = fptr + length;
 
-	uint16_t entry_count = g_maxp.numGlyphs + 1;
-	uint32_t* out = (uint32_t*)malloc(entry_count * 4);
-
 	if (g_head.indexToLocFormat == 0) {
-		for (uint16_t i = 0; i < entry_count; i++) {
-			read16(out[i]);
-			out[i] *= 2;
+		for (uint16_t i = 0; i < num_offsets; i++) {
+			read16(offsets[i]);
+			offsets[i] *= 2;
 		}
 	} else {
-		for (uint16_t i = 0; i < entry_count; i++) {
-			read32(out[i]);
+		for (uint16_t i = 0; i < num_offsets; i++) {
+			read32(offsets[i]);
 		}
 	}
-	*offsets = out;
 
 	return 0;
 
@@ -488,27 +547,19 @@ void intersect_lines() {
 	
 }
 
-typedef struct {
-	uint16_t x, y;
-} vec2i;
-typedef struct {
-	uint16_t line_count;
-	vec2i* lines;
-} Glyph;
 
-
-int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
+int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, TTF_Data* data) {
 	reader rdr[1] = { (reader){fp, fp+length} };
 	
 	uint8_t* fptr = fp;
 	const uint8_t* fend = fptr + length;
 
 	// maximum size of different buffers
-	uint16_t max_contours_num = g_maxp.maxContours;
+	uint16_t max_contours_num = maxp.maxContours;
 	uint16_t max_endpts_len = max_contours_num * 2; // 16 bits
-	uint16_t max_intr_len = g_maxp.maxSizeOfInstructions;
-	uint16_t max_flags_len = g_maxp.maxPoints * 2; // not sure if this is actually the max, this is if each point has a flag and a number to continue
-	uint16_t max_coords_len = g_maxp.maxPoints * sizeof(vec2i);
+	uint16_t max_intr_len = maxp.maxSizeOfInstructions;
+	uint16_t max_flags_len = maxp.maxPoints * 2; // not sure if this is actually the max, this is if each point has a flag and a number to continue
+	uint16_t max_coords_len = maxp.maxPoints * sizeof(vec2i);
 	uint8_t* buffer = (uint8_t*)malloc((size_t)max_intr_len + (size_t)max_endpts_len + (size_t)max_flags_len + (size_t)max_coords_len + (size_t)max_coords_len);
 	
 	uint16_t* endpts_buf = (uint16_t*)buffer;
@@ -534,25 +585,24 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 	// Compound Glyphs:
 	// for the time being I'm going to just call this an error
 	
-	uint16_t num_glyphs = g_maxp.numGlyphs;
-	
-	puts("svg path: ");
+	uint16_t num_glyphs = maxp.numGlyphs;
 
 	uint32_t x = 0;
 
-	FILE* svgp = fopen("svg_path.svg", "w");
+	vec2i* points = (vec2i*)calloc(16, sizeof(vec2i));
+	uint16_t points_size = 16;
+	uint16_t points_start = 0;
+	uint16_t points_end = 0;
+	for (uint16_t glyph_index = 0; glyph_index < num_glyphs; glyph_index++) {
+		rdr->ptr = fp + offsets[glyph_index];
 
-	fprintf(svgp, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" transform=\"scale(1,-1)\" height=\"1500\"> <path stroke=\"black\" fill=\"none\" d=\"");
-	for (uint16_t i = 0; i < num_glyphs; i++) {
-		rdr->ptr = fp + offsets[i];
-
-		uint32_t glyph_len = offsets[i+1] - offsets[i];
+		uint32_t glyph_len = offsets[glyph_index+1] - offsets[glyph_index];
 		
 		if (glyph_len == 0) {
-			printf("empty glyph %hu\n", i);
+			printf("empty glyph %hu\n", glyph_index);
 			continue;
 		}
-		uint8_t* fptr = fp + offsets[i];
+		uint8_t* fptr = fp + offsets[glyph_index];
 		const uint8_t* fend = fp + length;
 
 		//printf("glyph #%hu %i %i\n", i, offsets[i], offsets[i+1]);
@@ -571,22 +621,31 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 		read16(ymin);
 		read16(xmax);
 		read16(ymax);
+
 		
-		fprintf(svgp, "M %hu 600\n", x);
-		x += xmax + 20;
+		
 		if (num_contours > max_contours_num) { printf("contour num was greater than reported max %hu %hu", num_contours, max_contours_num); return -1; }
 	
 		for(int16_t i = 0; i < num_contours; i++) {
 			read16(endpts_buf[i]);
-			//printf("	%hi\n", endpts_buf[i]);
 		}
 
 		uint16_t num_coords = endpts_buf[num_contours-1]+1;
+		points_start = points_end;
+		points_end = points_start + num_coords + 1; // +1 for extra end point
+
+		// expand points if not enough room
+		if (points_size < points_end) {
+			while(points_size < points_end) points_size += points_size;
+			points = (vec2i*)realloc(points, points_size * sizeof(vec2i));
+		}
+
+
 
 		read16(intr_len);
 		if (intr_len > max_intr_len) { puts("intr len was greater than reported max"); return -1; }
 		//read_memcpy(rdr, intr_buf, intr_len);
-		fptr += intr_len;
+		fptr += intr_len; // skip instructions for now
 
 		uint8_t flag_repeat = 0;
 		for (uint8_t i = 0; i < num_coords; i++) {
@@ -600,10 +659,8 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 			}
 		}
 
-		
-		//printf("contours: %hu\n", num_contours);
-		//printf("coords: %hu\n", num_coords);
-
+		vec2i* coords_buf = points + points_start;
+		vec2 endp = { 0, 0 };
 		// these next two sections are obtuse
 		// but in my defence they are much faster because they are branchless
 		{
@@ -623,6 +680,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 				j -= (~n_sm & ~sh) & 2;
 
 				coords_buf[i].x = x_0 << 8 | x_1;
+				endp.x += coords_buf[i].x;
 			}
 			fptr += j;
 		}
@@ -644,55 +702,27 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets) {
 				j -= (~n_sm & ~sh) & 2;
 
 				coords_buf[i].y = y_0 << 8 | y_1;
+				endp.y += coords_buf[i].y;
 			}
 			fptr += j;
 		}
+		
+		// calculate last point
 
-		//puts("points: ");
-		uint16_t contour_index = 0;
-		float x, y;
-		float perp_x, perp_y;
-		float back_x, back_y;
-		float len;
+		uint16_t last_point_i = points_start+num_coords;
+		points[last_point_i].x = endp.x - points[points_start].x;
+		points[last_point_i].y = endp.y - points[points_start].y;
 
-		uint16_t contour_start = 0;
-		for(int16_t i = 0; i < num_coords; i++) {
-
-			if (i == contour_start) {
-				fprintf(svgp, "m %hi %hi\n", coords_buf[contour_start].x, coords_buf[contour_start].y);
-				contour_start = endpts_buf[contour_index]+1;
-				continue;
-			}
-
-			fprintf(svgp, "l %hi %hi\n", coords_buf[i].x, coords_buf[i].y);
-
-
-			x = coords_buf[i].x;
-			y = coords_buf[i].y;
-
-			perp_x = y;
-			perp_y = -x;
-			len = sqrtf(perp_x * perp_x + perp_y * perp_y);
-			perp_x = (perp_x / len) * 5;
-			perp_y = (perp_y / len) * 5;
-
-			back_x = (x / len) * 10;
-			back_y = (y / len) * 10;
-
-
-			fprintf(svgp, "l %f %f", -back_x + perp_x, -back_y + perp_y);
-			fprintf(svgp, "m %f %f", perp_x * -2, perp_y * -2);
-			fprintf(svgp, "l %f %f", back_x + perp_x, back_y + perp_y);
-
-			if (i == endpts_buf[contour_index]) {
-				fprintf(svgp, "l -20 -20 m 0 40 l 40 -40 m 0 40 l -20 -20"); // draw an x
-				contour_index++;
-			}
-			//printf("	%5hi %5hi\n", xcoords_buf[i], ycoords_buf[i]);
-		}
-
+		data->glyphs[glyph_index].points_start = points_start;
+		data->glyphs[glyph_index].points_end = points_end;
+		data->glyphs[glyph_index].min.x = xmin;
+		data->glyphs[glyph_index].min.y = ymin;
+		data->glyphs[glyph_index].max.x = xmax;
+		data->glyphs[glyph_index].max.y = ymax;
+		
 	}
-	fprintf(svgp, "\"/></svg>");
+
+	data->points_count = points_end;
 
 	return 0;
 error_eof:
@@ -702,28 +732,28 @@ error_eof:
 }
 
 
-int read_head(uint8_t* fp, uint32_t length) {
+int read_head(uint8_t* fp, uint32_t length, TableHEAD* head) {
 	reader rdr[1] = { (reader){fp, fp+length} };
 
-	g_head.version_int = 		read_uint16(rdr);	
-	g_head.version_frac = 		read_uint16(rdr); 	
-	g_head.fontRevision_int = 	read_uint16(rdr);	
-	g_head.fontRevision_frac = 	read_uint16(rdr); 	
-	g_head.checkSumAdjustment = read_uint32(rdr);	
-	g_head.magicNumber = 		read_uint32(rdr);	
-	g_head.flags = 				read_uint16(rdr);	
-	g_head.unitsPerEm = 		read_uint16(rdr);	
-	g_head.created = 			read_int64(rdr);		
-	g_head.modified = 			read_int64(rdr);		
-	g_head.xMin = 				read_int16(rdr);		
-	g_head.yMin = 				read_int16(rdr);		
-	g_head.xMax = 				read_int16(rdr);		
-	g_head.yMax = 				read_int16(rdr);		
-	g_head.macStyle = 			read_uint16(rdr);	
-	g_head.lowestRecPPEM = 		read_uint16(rdr);	
-	g_head.fontDirectionHint = 	read_int16(rdr);		
-	g_head.indexToLocFormat = 	read_int16(rdr);		
-	g_head.glyphDataFormat = 	read_int16(rdr);		
+	head->version_int = 		read_uint16(rdr);	
+	head->version_frac = 		read_uint16(rdr); 	
+	head->fontRevision_int = 	read_uint16(rdr);	
+	head->fontRevision_frac = 	read_uint16(rdr); 	
+	head->checkSumAdjustment = read_uint32(rdr);	
+	head->magicNumber = 		read_uint32(rdr);	
+	head->flags = 				read_uint16(rdr);	
+	head->unitsPerEm = 		read_uint16(rdr);	
+	head->created = 			read_int64(rdr);		
+	head->modified = 			read_int64(rdr);		
+	head->xMin = 				read_int16(rdr);		
+	head->yMin = 				read_int16(rdr);		
+	head->xMax = 				read_int16(rdr);		
+	head->yMax = 				read_int16(rdr);		
+	head->macStyle = 			read_uint16(rdr);	
+	head->lowestRecPPEM = 		read_uint16(rdr);	
+	head->fontDirectionHint = 	read_int16(rdr);		
+	head->indexToLocFormat = 	read_int16(rdr);		
+	head->glyphDataFormat = 	read_int16(rdr);		
 
 	return 0;
 }
