@@ -9,6 +9,8 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+
+#include "ttf.h"
 /*
 sequence of concatenated tables
 
@@ -101,8 +103,10 @@ typedef struct {
 	uint16_t x, y;
 } vec2i;
 typedef struct {
-	uint16_t points_start;
-	uint16_t points_end;
+	// index of first point in simple glyph, start of complex 
+	uint16_t body_start; 
+	// number of points in a simple glyph, size in bytes of a complex glyph
+	uint16_t body_size; 
 	vec2i min;
 	vec2i max;
 } Glyph;
@@ -301,6 +305,8 @@ int read_ttf(const char* path) {
 	err = read_glyf(filemem + glyf.offset, glyf.length, loca_offsets, table_maxp, &ttf_data);
 	if (err != 0) return err;
 
+
+	TTF_Character* character_buf;
     /*	maxPoints
 
 
@@ -713,8 +719,8 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 		points[last_point_i].x = endp.x - points[points_start].x;
 		points[last_point_i].y = endp.y - points[points_start].y;
 
-		data->glyphs[glyph_index].points_start = points_start;
-		data->glyphs[glyph_index].points_end = points_end;
+		data->glyphs[glyph_index].body_start = points_start;
+		data->glyphs[glyph_index].body_size = points_end - points_start;
 		data->glyphs[glyph_index].min.x = xmin;
 		data->glyphs[glyph_index].min.y = ymin;
 		data->glyphs[glyph_index].max.x = xmax;
