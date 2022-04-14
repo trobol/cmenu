@@ -23,11 +23,17 @@ typedef struct TTF_Line {
     int end_x, end_y;
 } TTF_Line;
 
+typedef struct TTF_Point {
+	int16_t x, y;
+	uint8_t end;
+} TTF_Point;
+
 typedef struct TTF_Character {
     char character;
-    TTF_Character* next;
-    unsigned int line_count;
-    TTF_Line lines[];
+	int min_x, min_y;
+	int max_x, max_y;
+	size_t points_count;
+	TTF_Point points[];
 } TTF_Character;
 
 

@@ -112,7 +112,8 @@ typedef struct {
 } Glyph;
 
 typedef struct {
-	Glyph* glyphs;
+	TTF_Character* characters;
+	TTF_Character* characters_end;
 	vec2i* points;
 	uint16_t points_count;
 } TTF_Data;
@@ -300,13 +301,11 @@ int read_ttf(const char* path) {
 	if (err != 0) return err;
 
 	TTF_Data ttf_data;
-	ttf_data.glyphs = (Glyph*)calloc(table_maxp.numGlyphs, sizeof(Glyph));
 
 	err = read_glyf(filemem + glyf.offset, glyf.length, loca_offsets, table_maxp, &ttf_data);
 	if (err != 0) return err;
 
 
-	TTF_Character* character_buf;
     /*	maxPoints
 
 
@@ -333,9 +332,18 @@ int read_ttf(const char* path) {
 
 	fprintf(svgp, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" transform=\"scale(1,-1)\" height=\"1500\"> <path stroke=\"black\" fill=\"none\" d=\"");
 
-	
+	TTF_Character* cur_char = ttf_data.characters;
+	int x = 20;
+	int y = 20;
 	fprintf(svgp, "M %hu 600\n", x);
-	x += xmax + 20;
+	
+	while( cur_char < ttf_data.characters_end ) {
+		x += cur_char->max_x + 20;
+		
+		printf("point_count: %hu\n", cur_char->points_count);
+		cur_char = (TTF_Character*)(cur_char->points + cur_char->points_count);
+	}
+	
 	/*
 		//puts("points: ");
 		uint16_t contour_index = 0;
@@ -565,15 +573,22 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 	uint16_t max_endpts_len = max_contours_num * 2; // 16 bits
 	uint16_t max_intr_len = maxp.maxSizeOfInstructions;
 	uint16_t max_flags_len = maxp.maxPoints * 2; // not sure if this is actually the max, this is if each point has a flag and a number to continue
-	uint16_t max_coords_len = maxp.maxPoints * sizeof(vec2i);
+	uint16_t max_coords_len = maxp.maxPoints * sizeof(int16_t);
+
+
 	uint8_t* buffer = (uint8_t*)malloc((size_t)max_intr_len + (size_t)max_endpts_len + (size_t)max_flags_len + (size_t)max_coords_len + (size_t)max_coords_len);
 	
 	uint16_t* endpts_buf = (uint16_t*)buffer;
 	uint8_t* intr_buf = ((uint8_t*)endpts_buf) + max_endpts_len;
-	uint8_t* flags_buf = intr_buf + max_intr_len;
-	vec2i* coords_buf = (vec2i*)(flags_buf + max_flags_len);
+	//uint8_t* flags_buf = intr_buf + max_intr_len;
+	//vec2i* coords_buf = (vec2i*)(flags_buf + max_flags_len);
 
+	if (maxp.maxPoints > 64) puts("ERROR: point coords will overflow buffer, add a dynamic buffer");
 
+	int16_t coords_buf_x[64];
+	int16_t coords_buf_y[64];
+	uint8_t flags_buf[64];
+	
 	// two types of glyphs: simple and compound
 	// source: https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6glyf.html
 	// Simple glyphs
@@ -595,10 +610,9 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 
 	uint32_t x = 0;
 
-	vec2i* points = (vec2i*)calloc(16, sizeof(vec2i));
-	uint16_t points_size = 16;
-	uint16_t points_start = 0;
-	uint16_t points_end = 0;
+	TTF_Character* buffer_start = malloc(32); // allocate 32 bytes to start
+	TTF_Character* buffer_end = (TTF_Character*)((uint8_t*)buffer_start+32);
+	TTF_Character* cur_char = buffer_start; 
 	for (uint16_t glyph_index = 0; glyph_index < num_glyphs; glyph_index++) {
 		rdr->ptr = fp + offsets[glyph_index];
 
@@ -617,16 +631,16 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 		uint16_t intr_len;
 		
 
-		int16_t xmin, ymin, xmax, ymax;
+		int16_t min_x, min_y, max_x, max_y;
 
 		read16(num_contours);
 		if (num_contours < 1) { puts("glyph was a contour, character skipped\n"); continue; }
 		//printf("  num contours: %hi", num_contours);
 
-		read16(xmin);
-		read16(ymin);
-		read16(xmax);
-		read16(ymax);
+		read16(min_x);
+		read16(min_y);
+		read16(max_x);
+		read16(max_y);
 
 		
 		
@@ -636,25 +650,43 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 			read16(endpts_buf[i]);
 		}
 
-		uint16_t num_coords = endpts_buf[num_contours-1]+1;
-		points_start = points_end;
-		points_end = points_start + num_coords + 1; // +1 for extra end point
 
-		// expand points if not enough room
-		if (points_size < points_end) {
-			while(points_size < points_end) points_size += points_size;
-			points = (vec2i*)realloc(points, points_size * sizeof(vec2i));
+		uint16_t read_num_pts =  endpts_buf[num_contours-1]+1; // index of last point + 1 = number of points
+		uint16_t num_pts = read_num_pts;
+		
+		// calculate size of character, and ensure there is enough room in buffer
+		size_t char_size = sizeof(TTF_Character) + sizeof(TTF_Line) * num_pts;
+		TTF_Character* next_char = (TTF_Character*)(cur_char->points + num_pts);
+		if (next_char > buffer_end) {
+		
+			size_t cur_offset = (size_t)cur_char - (size_t)buffer_start;
+			size_t cur_size = (size_t)buffer_end - (size_t)buffer_start;
+			
+			while(next_char > buffer_end) {
+				cur_size *= 2;
+				buffer_start = realloc(buffer_start, cur_size);
+				buffer_end = (uint8_t*)buffer_start + cur_size;
+
+				cur_char = (uint8_t*)buffer_start + cur_offset;
+				next_char = (TTF_Character*)(cur_char->points + num_pts);
+			}
 		}
-
+		
+		cur_char->min_x = min_x;
+		cur_char->min_y = min_y;
+		cur_char->max_x = max_x;
+		cur_char->max_y = max_y;
+		cur_char->points_count = num_pts;
 
 
 		read16(intr_len);
 		if (intr_len > max_intr_len) { puts("intr len was greater than reported max"); return -1; }
 		//read_memcpy(rdr, intr_buf, intr_len);
+		// TODO: do something with instructions
 		fptr += intr_len; // skip instructions for now
 
 		uint8_t flag_repeat = 0;
-		for (uint8_t i = 0; i < num_coords; i++) {
+		for (uint8_t i = 0; i < read_num_pts; i++) {
 			if (flag_repeat == 0) {
 				flags_buf[i] = *(fptr++);
 				if ( flags_buf[i] & SGLYFFLAGS_REPEAT ) flag_repeat = *(fptr++);
@@ -665,13 +697,13 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 			}
 		}
 
-		vec2i* coords_buf = points + points_start;
-		vec2 endp = { 0, 0 };
+		
+	
 		// these next two sections are obtuse
-		// but in my defence they are much faster because they are branchless
+		// but in my defense they are much faster because they are branchless
 		{
 			uint16_t j = 0;
-			for(uint16_t i = 0; i < num_coords; i++) {
+			for(uint16_t i = 0; i < read_num_pts; i++) {
 				uint8_t flags = flags_buf[i];
 
 				uint16_t sh = ~(((flags & SGLYFFLAGS_SHORTX) >> 1)-1); // every bit is 1 if short flag is set, zero otherwise
@@ -685,15 +717,16 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 				j -= sh & 1;
 				j -= (~n_sm & ~sh) & 2;
 
-				coords_buf[i].x = x_0 << 8 | x_1;
-				endp.x += coords_buf[i].x;
+				coords_buf_x[i] = x_0 << 8 | x_1;
+				
 			}
 			fptr += j;
 		}
 
+
 		{
 			uint16_t j = 0;
-			for(uint16_t i = 0; i < num_coords; i++) {
+			for(uint16_t i = 0; i < read_num_pts; i++) {
 				uint8_t flags = flags_buf[i];
 
 				uint16_t sh = ~(((flags & SGLYFFLAGS_SHORTY) >> 2)-1);
@@ -707,28 +740,27 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 				j -= sh & 1;
 				j -= (~n_sm & ~sh) & 2;
 
-				coords_buf[i].y = y_0 << 8 | y_1;
-				endp.y += coords_buf[i].y;
+				coords_buf_x[i] = y_0 << 8 | y_1;
 			}
 			fptr += j;
 		}
 		
-		// calculate last point
+		uint16_t contour_index = 0;
+		for (uint16_t i = 0; i < num_pts; i++) {
+			cur_char->points[i].x = coords_buf_x[i]; 
+			cur_char->points[i].y = coords_buf_y[i]; 
+			cur_char->points[i].end = 0;
+			if (i == endpts_buf[contour_index]) {
+				contour_index++;
+				cur_char->points[i].end = 1;
+			}
+		}
 
-		uint16_t last_point_i = points_start+num_coords;
-		points[last_point_i].x = endp.x - points[points_start].x;
-		points[last_point_i].y = endp.y - points[points_start].y;
-
-		data->glyphs[glyph_index].body_start = points_start;
-		data->glyphs[glyph_index].body_size = points_end - points_start;
-		data->glyphs[glyph_index].min.x = xmin;
-		data->glyphs[glyph_index].min.y = ymin;
-		data->glyphs[glyph_index].max.x = xmax;
-		data->glyphs[glyph_index].max.y = ymax;
-		
+		cur_char = next_char;
 	}
 
-	data->points_count = points_end;
+	data->characters = buffer_start;
+	data->characters_end = buffer_end;
 
 	return 0;
 error_eof:
