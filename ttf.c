@@ -610,9 +610,13 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 
 	uint32_t x = 0;
 
-	TTF_Character* buffer_start = malloc(32); // allocate 32 bytes to start
-	TTF_Character* buffer_end = (TTF_Character*)((uint8_t*)buffer_start+32);
-	TTF_Character* cur_char = buffer_start; 
+	// buffer of TTF_Characters and their data, type is uint8_t* to make pointer math simpler
+	size_t buffer_size = 256;
+	uint8_t* buffer_start = malloc(buffer_size); // alloc 256 bytes to start
+
+	
+	
+	size_t cur_offset = 0;
 	for (uint16_t glyph_index = 0; glyph_index < num_glyphs; glyph_index++) {
 		rdr->ptr = fp + offsets[glyph_index];
 
@@ -650,33 +654,31 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 			read16(endpts_buf[i]);
 		}
 
+		// pointers in TTF_Character are relative and will be fixed to be non-relative at the end of the function
+		// 
 
-		uint16_t read_num_pts =  endpts_buf[num_contours-1]+1; // index of last point + 1 = number of points
-		uint16_t num_pts = read_num_pts;
+		uint16_t read_num_pts =  endpts_buf[num_contours-1]+1; // index of last point + 1 = number of points in file
+		uint16_t num_pts = read_num_pts; // we are adding another point to the end of each contour for ease if use later
 		
 		// calculate size of character, and ensure there is enough room in buffer
-		size_t char_size = sizeof(TTF_Character) + sizeof(TTF_Line) * num_pts;
-		TTF_Character* next_char = (TTF_Character*)(cur_char->points + num_pts);
-		if (next_char > buffer_end) {
-		
-			size_t cur_offset = (size_t)cur_char - (size_t)buffer_start;
-			size_t cur_size = (size_t)buffer_end - (size_t)buffer_start;
-			
-			while(next_char > buffer_end) {
-				cur_size *= 2;
-				buffer_start = realloc(buffer_start, cur_size);
-				buffer_end = (uint8_t*)buffer_start + cur_size;
-
-				cur_char = (uint8_t*)buffer_start + cur_offset;
-				next_char = (TTF_Character*)(cur_char->points + num_pts);
-			}
+		size_t char_size = sizeof(TTF_Character) + sizeof(TTF_Point) * num_pts + sizeof(uint16_t) * num_contours;
+		size_t next_offset = cur_offset + char_size;
+		if (next_offset > buffer_size) {
+			while(next_offset > buffer_size)
+				buffer_size *= 2;
+			buffer_start = realloc(buffer_start, buffer_size);
 		}
-		
+
+		TTF_Character* cur_char = buffer_start + cur_offset;
 		cur_char->min_x = min_x;
 		cur_char->min_y = min_y;
 		cur_char->max_x = max_x;
 		cur_char->max_y = max_y;
+		cur_char->next = next_offset;
 		cur_char->points_count = num_pts;
+		cur_char->endpoints_count = num_contours;
+		// not going to bother setting points ptr now, will be set later when "next" is made non relative
+
 
 
 		read16(intr_len);
@@ -749,18 +751,26 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 		for (uint16_t i = 0; i < num_pts; i++) {
 			cur_char->points[i].x = coords_buf_x[i]; 
 			cur_char->points[i].y = coords_buf_y[i]; 
-			cur_char->points[i].end = 0;
-			if (i == endpts_buf[contour_index]) {
-				contour_index++;
-				cur_char->points[i].end = 1;
-			}
 		}
 
-		cur_char = next_char;
+
+
+		cur_offset = next_offset;
+	}
+
+	TTF_Character* cur_char = (TTF_Character*)buffer_start;
+	for (int i = 0; i < num_glyphs; i++) {
+		// endpoints are the memory right after character
+		cur_char->points = cur_char->endpoints + sizeof(uint16_t) * cur_char->endpoints_count;
+		cur_char->next = (TTF_Character*)(buffer_start + (size_t)cur_char->next);
+		cur_char->points = cur_char+1; // points are right after character in memory
+		cur_char->endpoints = cur_char->points + num_pts; // endpoints are after points
+
+		cur_char = cur_char->next;
 	}
 
 	data->characters = buffer_start;
-	data->characters_end = buffer_end;
+	data->characters_end = buffer_start + buffer_size;
 
 	return 0;
 error_eof:

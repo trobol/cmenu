@@ -25,18 +25,25 @@ typedef struct TTF_Line {
 
 typedef struct TTF_Point {
 	int16_t x, y;
-	uint8_t end;
 } TTF_Point;
 
-typedef struct TTF_Character {
+
+typedef struct TTF_Character TTF_Character;
+struct TTF_Character {
     char character;
-	int min_x, min_y;
-	int max_x, max_y;
-	size_t points_count;
+	int16_t min_x, min_y;
+	int16_t max_x, max_y;
+	uint16_t points_count;
+	uint16_t endpoints_count;
+	TTF_Character* next;
+	TTF_Point* points;
+	uint16_t endpoints[];
+};
+
+struct TTF_Contour {
+	
 	TTF_Point points[];
-} TTF_Character;
-
-
+};
 
 typedef struct TTF_FontData {
     TTF_Character* characters;
