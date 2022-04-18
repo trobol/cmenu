@@ -40,11 +40,6 @@ struct TTF_Character {
 	uint16_t endpoints[];
 };
 
-struct TTF_Contour {
-	
-	TTF_Point points[];
-};
-
 typedef struct TTF_FontData {
     TTF_Character* characters;
 } TTF_FontData;
