@@ -42,9 +42,6 @@ void read_section(uint8_t* ptr, uint8_t* end) {
 
 }
 
-int read_ttf(const char* path); 
-
-
 int fread_err(const char* var_name) {
 	printf("filed ended unexpectedly while trying to read '%s'\n", var_name);
 	return -1;
@@ -100,7 +97,7 @@ typedef struct {
 
 
 typedef struct {
-	uint16_t x, y;
+	int16_t x, y;
 } vec2i;
 typedef struct {
 	// index of first point in simple glyph, start of complex 
@@ -219,7 +216,7 @@ TableDirRecord find_required_record(const char* tag_str, TableDirRecord* records
 
 
 
-int read_ttf(const char* path) {
+int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len) {
 
 
 	long file_len;
@@ -306,7 +303,10 @@ int read_ttf(const char* path) {
 	if (err != 0) return err;
 
 
+	*first_char = ttf_data.characters;
+
     /*	maxPoints
+
 
 
     'cmap' 	character to glyph mapping
@@ -333,20 +333,19 @@ int read_ttf(const char* path) {
 	fprintf(svgp, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" transform=\"scale(1,-1)\" height=\"1500\"> <path stroke=\"black\" fill=\"none\" d=\"");
 
 	TTF_Character* cur_char = ttf_data.characters;
-	int x = 20;
-	int y = 20;
-	fprintf(svgp, "M %hu 600\n", x);
+	//int x = 20;
+	//int y = 20;
+	fprintf(svgp, "M %hu 100\n", 100);
 	int i = 0;
-	while( cur_char->next != NULL) {
-		x += cur_char->max_x + 20;
+	//while( cur_char->next != NULL) {
+		//x += cur_char->max_x + 20;
 		
 		printf("%i point_count: %hu\n", i, cur_char->points_count);
-		cur_char = cur_char->next;
-		i++;
-	}
-	
-	/*
-		//puts("points: ");
+
+
+		uint16_t num_coords = cur_char->points_count;
+		TTF_Point* coords_buf = cur_char->points;
+		uint16_t* endpts_buf = cur_char->endpoints;
 		uint16_t contour_index = 0;
 		float x, y;
 		float perp_x, perp_y;
@@ -358,12 +357,12 @@ int read_ttf(const char* path) {
 
 			if (i == contour_start) {
 				fprintf(svgp, "m %hi %hi\n", coords_buf[contour_start].x, coords_buf[contour_start].y);
-				contour_start = endpts_buf[contour_index]+1;
 				continue;
 			}
 
 			fprintf(svgp, "l %hi %hi\n", coords_buf[i].x, coords_buf[i].y);
 
+			/*
 
 			x = coords_buf[i].x;
 			y = coords_buf[i].y;
@@ -381,17 +380,24 @@ int read_ttf(const char* path) {
 			fprintf(svgp, "l %f %f", -back_x + perp_x, -back_y + perp_y);
 			fprintf(svgp, "m %f %f", perp_x * -2, perp_y * -2);
 			fprintf(svgp, "l %f %f", back_x + perp_x, back_y + perp_y);
+			*/
 
 			if (i == endpts_buf[contour_index]) {
 				fprintf(svgp, "l -20 -20 m 0 40 l 40 -40 m 0 40 l -20 -20"); // draw an x
+				contour_start = endpts_buf[contour_index]+1;
 				contour_index++;
 			}
-		
 		}
+		
+		cur_char = cur_char->next;
+		i++;
+	//}
+	
 
-	}
 	fprintf(svgp, "\"/></svg>");
-	*/
+
+	fclose(svgp);
+	
 }
 
 uint8_t* read_file(const char* path, uint64_t* length) {
@@ -661,7 +667,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 		// 
 
 		uint16_t read_num_pts =  endpts_buf[num_contours-1]+1; // index of last point + 1 = number of points in file
-		uint16_t num_pts = read_num_pts; // we are adding another point to the end of each contour for ease if use later
+		uint16_t num_pts = read_num_pts + num_contours; // we are adding another point to the end of each contour for ease if use later
 		
 		// calculate size of character, and ensure there is enough room in buffer
 		size_t char_size = sizeof(TTF_Character) + sizeof(TTF_Point) * num_pts + sizeof(uint16_t) * num_contours;
@@ -744,18 +750,63 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 				j -= sh & 1;
 				j -= (~n_sm & ~sh) & 2;
 
-				coords_buf_x[i] = y_0 << 8 | y_1;
+				coords_buf_y[i] = y_0 << 8 | y_1;
 			}
 			fptr += j;
 		}
 		
-		uint16_t contour_index = 0;
-		for (uint16_t i = 0; i < num_pts; i++) {
-			TTF_Point* p = (TTF_Point*)(cur_char->endpoints + cur_char->endpoints_count);
-			p->x = coords_buf_x[i]; 
-			p->y = coords_buf_y[i]; 
-		}
+		for (uint16_t i = 0; i < cur_char->endpoints_count; i++)
+			cur_char->endpoints[i] = endpts_buf[i] + i+1;
 
+		uint16_t* endpts_itr = cur_char->endpoints;
+		vec2i start = (vec2i){coords_buf_x[0],  coords_buf_y[0]};
+		vec2i end = (vec2i){0, 0};
+
+		uint16_t first_point = 0;
+
+		// TODO: this technically reads one two many
+		TTF_Point* points = (TTF_Point*)(cur_char->endpoints + cur_char->endpoints_count);
+		for (uint16_t in = 0, out = 0; in < read_num_pts; in++, out++) {
+			int16_t x = coords_buf_x[in];
+			int16_t y = coords_buf_y[in];
+		
+			points[out].x = x; 
+			points[out].y = y;
+
+			end.x += x;
+			end.y += y;
+			
+			if (out == *endpts_itr) {
+				out++;
+				int16_t new_pt_x = start.x - end.x;
+				int16_t new_pt_y = start.y - end.y;
+				points[out].x = new_pt_x;
+				points[out].y = new_pt_y;
+				first_point = *(endpts_itr)+1;
+				endpts_itr++;
+
+				
+				
+				end.x = start.x;
+				end.y = start.y;
+				
+				start.x += x;
+				start.y += y;
+
+				coords_buf_x[in];
+				coords_buf_y[in];
+
+				x -= new_pt_x;
+				y -= new_pt_y;
+			}
+			
+			if (out == first_point) {
+					
+			}
+
+			
+		}
+		
 
 
 		cur_offset = next_offset;

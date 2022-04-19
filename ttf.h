@@ -1,4 +1,4 @@
-
+#include <stdint.h>
 
 /*
 Should have internal structure that gets combined into one allocation
@@ -45,3 +45,5 @@ typedef struct TTF_FontData {
 } TTF_FontData;
 
 
+
+int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len);
