@@ -8,6 +8,9 @@ build_dump:
 run:
 	./a.out examples/mem/mem-prop-5x6.ttf
 
+build_run: build run
+
+
 debug:
 	gdb --args ./a.out examples/mem/mem-prop-5x6.ttf
 

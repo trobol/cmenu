@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 void bitmap1b_write(const char* path, uint8_t* data, uint32_t width, uint32_t height);
-void sdf_shape(const char* path, int16_t min_x, int16_t min_y, int16_t max_x, int16_t max_y, uint16_t* points, uint16_t* endpoints, uint32_t endpoints_count) {
+void sdf_shape(const char* path, int16_t min_x, int16_t min_y, int16_t max_x, int16_t max_y, int16_t* points, uint16_t* endpoints, uint32_t endpoints_count) {
 	uint32_t width = max_x - min_x;
 	uint32_t height = max_y - min_y;
 
@@ -11,14 +11,96 @@ void sdf_shape(const char* path, int16_t min_x, int16_t min_y, int16_t max_x, in
 	uint32_t num_pts = endpoints[endpoints_count-1]+1;
 	uint16_t* points_buf = malloc(num_pts * 2);
 	uint8_t* pixels = malloc(width * height);
-	for (uint32_t y = 0; y < height; y++)
-	for (uint32_t x = 0; x < width; x++) {
+	for (uint32_t pixel_y = 0; pixel_y < height; pixel_y++)
+	for (uint32_t pixel_x = 0; pixel_x < width; pixel_x++) { // for every pixel
 		
-	
+		int32_t p_x = pixel_x+min_x;
+		int32_t p_y = height-pixel_y+min_y;
+		
+		uint16_t num_coords = endpoints[endpoints_count-1]+1;
+		uint16_t contour_index = 0;
+		float x, y;
+		float perp_x, perp_y;
+		float back_x, back_y;
+		float len;
+
+		int16_t* pts_itr = points;
+		int16_t* pts_end = points + num_coords * 2;
+
+		int32_t p0_x = 0;
+		int32_t p0_y = 0;
+
+		uint16_t index = 0;
+		uint16_t first_pt = 0; // first point in contour
+
+		int32_t closest2 = 9999999999;
+
+		pixels[pixel_x + pixel_y * width] = 0;
+		for (; pts_itr < pts_end; pts_itr += 2, index++) {
+
+			
+			
+			int32_t d_x = pts_itr[0];
+			int32_t d_y = pts_itr[1];
+		
+			/*
+			{
+					p0_x += d_x;
+			p0_y += d_y;
+				int32_t diff_x = (p_x - p0_x);
+				int32_t diff_y = (p_y - p0_y);
+				int32_t dist2 = diff_x * diff_x + diff_y * diff_y;
+				if (dist2 < 10) {
+					pixels[pixel_x + pixel_y * width] = 255;
+					break;
+				}
+				continue;
+			}
+			*/
+			
+			if ( index == first_pt ) {
+				p0_x += d_x;
+				p0_y += d_y;
+				first_pt = endpoints[contour_index]+1;
+				contour_index++;
+				continue;
+			}
+			
+
+			int32_t x = (p_x - p0_x);
+			int32_t y = (p_y - p0_y);
+
+
+			int32_t top = x * d_x + y * d_y;
+			int32_t btm = d_x * d_x + d_y * d_y;
+
+			float t = (float)top/(float)btm;
+			if ( t > 1.0) t = 1.0;
+			if ( t < 0.0) t = 0.0;
+
+			int32_t out_x = (float)p0_x + (float)d_x * t;
+			int32_t out_y = (float)p0_y + (float)d_y * t;
+
+			int32_t diff_x = (out_x - p_x);
+			int32_t diff_y = (out_y - p_y);
+			int32_t dist2 = diff_x * diff_x + diff_y * diff_y;
 
 
 
+			//if (dist2 < 10) {
+			//	pixels[pixel_x + pixel_y * width] = 255;
+			//	break;
+			//}
 
+			if (dist2 < closest2) {
+				closest2 = dist2;
+			}
+
+			p0_x += d_x;
+			p0_y += d_y;
+		}
+
+		pixels[pixel_x + pixel_y * width] = 255 - (closest2 < 255 ? closest2 : 255);
 	}
 	
 

@@ -327,22 +327,25 @@ int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len) {
     //   read section to buffer
     //   parse buffer into structures
 
-	
+	TTF_Character* select_char =  ttf_data.characters;
+	while(select_char != NULL && select_char->character != 'A')
+		select_char = select_char->next;
+    
+	if (select_char == NULL){
+		puts("COULDNT SELECT CHARACTER");
+		return 1;
+	}
 	FILE* svgp = fopen("svg_path.svg", "w");
 
 	fprintf(svgp, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" transform=\"scale(1,-1)\" height=\"1500\"> <path stroke=\"black\" fill=\"none\" d=\"");
 
-	TTF_Character* cur_char = ttf_data.characters;
-	//int x = 20;
-	//int y = 20;
-	fprintf(svgp, "M %hu 100\n", 100);
+	TTF_Character* cur_char = select_char;
+	int x_offset = 200;
 	int i = 0;
-	//while( cur_char->next != NULL) {
-		//x += cur_char->max_x + 20;
+	while( cur_char->next != NULL) {
 		
-		printf("%i point_count: %hu\n", i, cur_char->points_count);
-
-
+		fprintf(svgp, "M %i 100\n", x_offset);
+		
 		uint16_t num_coords = cur_char->points_count;
 		TTF_Point* coords_buf = cur_char->points;
 		uint16_t* endpts_buf = cur_char->endpoints;
@@ -362,7 +365,7 @@ int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len) {
 
 			fprintf(svgp, "l %hi %hi\n", coords_buf[i].x, coords_buf[i].y);
 
-			/*
+			
 
 			x = coords_buf[i].x;
 			y = coords_buf[i].y;
@@ -380,18 +383,20 @@ int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len) {
 			fprintf(svgp, "l %f %f", -back_x + perp_x, -back_y + perp_y);
 			fprintf(svgp, "m %f %f", perp_x * -2, perp_y * -2);
 			fprintf(svgp, "l %f %f", back_x + perp_x, back_y + perp_y);
-			*/
-
+			
+			
 			if (i == endpts_buf[contour_index]) {
 				fprintf(svgp, "l -20 -20 m 0 40 l 40 -40 m 0 40 l -20 -20"); // draw an x
 				contour_start = endpts_buf[contour_index]+1;
 				contour_index++;
 			}
 		}
-		
+
+	
+		x_offset += cur_char->max_x - cur_char->min_x + 20;
 		cur_char = cur_char->next;
 		i++;
-	//}
+	}
 	
 
 	fprintf(svgp, "\"/></svg>");
@@ -679,6 +684,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 		}
 
 		TTF_Character* cur_char = (TTF_Character*)(buffer_start + cur_offset);
+		cur_char->character = glyph_index-1;
 		cur_char->min_x = min_x;
 		cur_char->min_y = min_y;
 		cur_char->max_x = max_x;
@@ -762,47 +768,55 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 		vec2i start = (vec2i){coords_buf_x[0],  coords_buf_y[0]};
 		vec2i end = (vec2i){0, 0};
 
-		uint16_t first_point = 0;
-
 		// TODO: this technically reads one two many
 		TTF_Point* points = (TTF_Point*)(cur_char->endpoints + cur_char->endpoints_count);
-		for (uint16_t in = 0, out = 0; in < read_num_pts; in++, out++) {
-			int16_t x = coords_buf_x[in];
-			int16_t y = coords_buf_y[in];
-		
-			points[out].x = x; 
-			points[out].y = y;
+		for (uint16_t in = 0, out = 0; out < num_pts; in++, out++) {
+			
+			int16_t x;
+			int16_t y;
 
-			end.x += x;
-			end.y += y;
+			if (in < read_num_pts) {
+				x = coords_buf_x[in];
+				y = coords_buf_y[in];
+			}
+		
 			
 			if (out == *endpts_itr) {
-				out++;
+				
 				int16_t new_pt_x = start.x - end.x;
 				int16_t new_pt_y = start.y - end.y;
 				points[out].x = new_pt_x;
 				points[out].y = new_pt_y;
-				first_point = *(endpts_itr)+1;
 				endpts_itr++;
-
-				
+				out++;
 				
 				end.x = start.x;
 				end.y = start.y;
 				
+				x -= new_pt_x;
+				y -= new_pt_y;
+				
+				
 				start.x += x;
 				start.y += y;
 
-				coords_buf_x[in];
-				coords_buf_y[in];
+				
+				
+				if (out >= num_pts)
+					break;
+				
+			} else {
 
-				x -= new_pt_x;
-				y -= new_pt_y;
 			}
 			
-			if (out == first_point) {
-					
-			}
+	
+
+			end.x += x;
+			end.y += y;
+			
+
+			points[out].x = x; 
+			points[out].y = y;
 
 			
 		}
