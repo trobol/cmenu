@@ -35,15 +35,18 @@ struct TTF_Character {
 	int16_t max_x, max_y;
 	uint16_t points_count;
 	uint16_t endpoints_count;
-	TTF_Character* next;
 	TTF_Point* points;
-	uint16_t endpoints[];
+	uint16_t* endpoints;
+	uint32_t size_bytes;
 };
 
-typedef struct TTF_FontData {
-    TTF_Character* characters;
-} TTF_FontData;
+typedef struct TTF_FontData TTF_FontData;
 
+
+
+typedef struct TTF_CharInfo {
+	
+} TTF_CharInfo;
 
 
 int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len);

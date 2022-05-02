@@ -16,8 +16,50 @@ sequence of concatenated tables
 
 */
 
+struct TTF_FontData {
+	// TABLE 'maxp'
+	uint16_t versionInt;
+	uint16_t versionFrac;
+    uint16_t numGlyphs;
+    uint16_t maxPoints;
+    uint16_t maxContours;
+    uint16_t maxComponentPoints;
+    uint16_t maxComponentContours;
+    uint16_t maxZones;
+    uint16_t maxTwilightPoints;
+    uint16_t maxStorage;
+    uint16_t maxFunctionsDefs;
+    uint16_t maxInstructionDefs;
+    uint16_t maxStackElements;
+    uint16_t maxSizeOfInstructions;
+    uint16_t maxComponentElements;
+    uint16_t maxComponentDepth;
+
+	// TABLE 'head'
+	uint16_t	version_int;
+	uint16_t 	version_frac;
+	uint16_t	fontRevision_int;
+	uint16_t 	fontRevision_frac;	
+	uint32_t	checkSumAdjustment;
+	uint32_t	magicNumber;
+	uint16_t	flags;
+	uint16_t	unitsPerEm;
+	int64_t		created;
+	int64_t		modified;
+	int16_t		xMin;
+	int16_t		yMin;
+	int16_t		xMax;
+	int16_t		yMax;
+	uint16_t	macStyle;	
+	uint16_t	lowestRecPPEM;
+	int16_t		fontDirectionHint;
+	int16_t		indexToLocFormat;
+	int16_t		glyphDataFormat;
+
+};
+
 typedef struct {
-    uint32_t tableTag;
+    uint32_t tag;
     uint32_t checksum;
     uint32_t offset;
     uint32_t length;
@@ -47,54 +89,6 @@ int fread_err(const char* var_name) {
 	return -1;
 }
 
-TableDirRecord find_table_record(const char* tag_str, TableDirRecord* records, uint32_t* tags, uint16_t count);
-
-typedef struct {
-    uint16_t versionInt;
-	uint16_t versionFrac;
-    uint16_t numGlyphs;
-    uint16_t maxPoints;
-    uint16_t maxContours;
-    uint16_t maxComponentPoints;
-    uint16_t maxComponentContours;
-    uint16_t maxZones;
-    uint16_t maxTwilightPoints;
-    uint16_t maxStorage;
-    uint16_t maxFunctionsDefs;
-    uint16_t maxInstructionDefs;
-    uint16_t maxStackElements;
-    uint16_t maxSizeOfInstructions;
-    uint16_t maxComponentElements;
-    uint16_t maxComponentDepth;
-} TableMAXP;
-
-typedef struct {
-	uint16_t	version_int;
-	uint16_t 	version_frac;
-	uint16_t	fontRevision_int;
-	uint16_t 	fontRevision_frac;	
-	uint32_t	checkSumAdjustment;
-	uint32_t	magicNumber;
-	uint16_t	flags;
-	uint16_t	unitsPerEm;
-	int64_t		created;
-	int64_t		modified;
-	int16_t		xMin;
-	int16_t		yMin;
-	int16_t		xMax;
-	int16_t		yMax;
-	uint16_t	macStyle;	
-	uint16_t	lowestRecPPEM;
-	int16_t		fontDirectionHint;
-	int16_t		indexToLocFormat;
-	int16_t		glyphDataFormat;
-} TableHEAD;
-
-typedef struct {
-	uint8_t* ptr;
-	uint8_t* end;
-} reader;
-
 
 typedef struct {
 	int16_t x, y;
@@ -115,12 +109,13 @@ typedef struct {
 	uint16_t points_count;
 } TTF_Data;
 
+int validate_table(uint8_t* fp, const uint8_t* fend, TableDirRecord record);
 
 
-int read_maxp(uint8_t* fp, uint32_t length, TableMAXP* maxp);
-int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, TTF_Data* data);
+int read_maxp(uint8_t* fp, uint32_t length, TTF_FontData* fdata);
+int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fdata, TTF_Data* data);
 int read_loca(uint8_t* fp, uint32_t length, uint32_t* offsets, uint16_t num_glyphs, int16_t indexToLocFormat);
-int read_head(uint8_t* fp, uint32_t length, TableHEAD* head);
+int read_head(uint8_t* fp, uint32_t length, TTF_FontData* fdata);
 
 uint8_t* read_file(const char* path, uint64_t* length);
 void free_file(long length);
@@ -128,69 +123,8 @@ void free_file(long length);
 
 
 
-uint8_t read_byte(reader* rdr) {
-	if (rdr->ptr + 1 > rdr->end) exit(1);
-	uint8_t a = rdr->ptr[0];
-	rdr->ptr += 1;
-	return a;
-}
-
-void read_memcpy(reader* rdr, void* dst, size_t size) {
-	if (rdr->ptr + size > rdr->end) exit(1);
-	
-	memcpy(dst, rdr->ptr, size);
-	rdr->ptr += size;
-}
-
-
-
-uint16_t read_uint16(reader* rdr) {
-	if (rdr->ptr + 2 > rdr->end) exit(1);
-	uint8_t a = rdr->ptr[0];
-	uint8_t b = rdr->ptr[1];
-	rdr->ptr += 2;
-	return (a << 8) | b;
-}
-
-uint32_t read_uint32(reader* rdr) {
-	if (rdr->ptr + 4 > rdr->end) exit(1);
-	uint8_t a = rdr->ptr[0];
-	uint8_t b = rdr->ptr[1];
-	uint8_t c = rdr->ptr[2];
-	uint8_t d = rdr->ptr[3];
-	rdr->ptr += 4;
-	return (a << 24) | (b << 16) | (c << 8) | d; 
-}
-
-int16_t read_int16(reader* rdr) {
-	if (rdr->ptr + 2 > rdr->end) exit(1);
-	uint8_t a = rdr->ptr[0];
-	uint8_t b = rdr->ptr[1];
-	rdr->ptr += 2;
-	return (a << 8) | b;
-}
-
-int32_t read_int32(reader* rdr) {
-	if (rdr->ptr + 4 > rdr->end) exit(1);
-	uint8_t a = rdr->ptr[0];
-	uint8_t b = rdr->ptr[1];
-	uint8_t c = rdr->ptr[2];
-	uint8_t d = rdr->ptr[3];
-	rdr->ptr += 4;
-	return (a << 24) | (b << 16) | (c << 8) | d; 
-}
-
-int32_t read_int64(reader* rdr) {
-	if (rdr->ptr + 8 > rdr->end) exit(1);
-	
-	
-	int64_t i = ((uint64_t)rdr->ptr[0] << 56) | ((uint64_t)rdr->ptr[1] << 48) | ((uint64_t)rdr->ptr[2] << 40) | ((uint64_t)rdr->ptr[3] << 32) | ((uint64_t)rdr->ptr[4] << 24) | ((uint64_t)rdr->ptr[5] << 16) | ((uint64_t)rdr->ptr[6] << 8) | (uint64_t)rdr->ptr[7]; 
-	rdr->ptr += 8;
-	return i;
-}
-
-
-
+#define readcpy(var, type) if (fptr + sizeof(type) > fend) goto error_eof; (var) = *(type*)fptr; fptr += sizeof(type);
+#define read64(var) if (fptr + 8 > fend) goto error_eof; (var) = ((uint64_t)fptr[0] << 56) | ((uint64_t)fptr[1] << 48) | ((uint64_t)fptr[2] << 40) | ((uint64_t)fptr[3] << 32) | ((uint64_t)fptr[4] << 24) | ((uint64_t)fptr[5] << 16) | ((uint64_t)fptr[6] << 8) | (uint64_t)fptr[7]; fptr += 8;
 #define read32(var) if (fptr + 4 > fend) goto error_eof; (var) = (fptr[0] << 24) | (fptr[1] << 16) | (fptr[2] << 8) | fptr[3]; fptr += 4;
 #define read16(var) if (fptr + 2 > fend) goto error_eof; (var) = (fptr[0] << 8) | fptr[1]; fptr += 2;
 
@@ -204,17 +138,98 @@ int32_t read_int64(reader* rdr) {
 #define read_int16(var) 
 
 */
-TableHEAD g_head;
 
+typedef struct TableDirectory {
+union {
+	TableDirRecord required_records[8];
+struct {
+	TableDirRecord maxp;
+	TableDirRecord glyf;
+	TableDirRecord cmap;
+	TableDirRecord loca;
+	TableDirRecord name;
+	TableDirRecord head;
+	TableDirRecord hhea;
+	TableDirRecord hmtx;
+};
+};
+} TableDirectory;
 
-TableDirRecord find_required_record(const char* tag_str, TableDirRecord* records, uint32_t* tags, uint16_t count) {
-	TableDirRecord table = find_table_record(tag_str, records, tags, count);
-	if (table.length == 0) { printf("missing table %s\n", tag_str); exit(1); }
-	return table;
+#define MAKE_TAG(a,b,c,d) ((uint32_t) (d<<24) | (c<<16) | (b<<8) | (a) )
+
+#define TAG_MAXP MAKE_TAG('m', 'a', 'x', 'p')
+#define TAG_GLYF MAKE_TAG('g', 'l', 'y', 'f')
+#define TAG_CMAP MAKE_TAG('c', 'm', 'a', 'p')
+#define TAG_LOCA MAKE_TAG('l', 'o', 'c', 'a')
+#define TAG_NAME MAKE_TAG('n', 'a', 'm', 'e')
+#define TAG_HEAD MAKE_TAG('h', 'e', 'a', 'd')
+#define TAG_HHEA MAKE_TAG('h', 'h', 'e', 'a')
+#define TAG_HMTX MAKE_TAG('h', 'm', 't', 'x')
+
+TableDirRecord* match_dir_tag(TableDirectory* dir, uint32_t tag) {
+	switch(tag) {
+		case TAG_MAXP:
+			return &dir->maxp;
+		case TAG_GLYF:
+			return &dir->glyf;
+		case TAG_CMAP:
+			return &dir->cmap;
+		case TAG_LOCA:
+			return &dir->loca;
+		case TAG_NAME:
+			return &dir->name;
+		case TAG_HEAD:
+			return &dir->head;
+		case TAG_HHEA:
+			return &dir->hhea;
+		case TAG_HMTX:
+			return &dir->hmtx;
+	}
+
+	return NULL;
 }
 
+int read_directory(uint8_t* fptr, uint8_t* fend, TableDirectory* dir) {
 
+	uint16_t numTables;
+	fptr += 4; // sfntVersion
+	read16(numTables);
+	fptr += 2; // searchRange
+	fptr += 2; // entrySelector
+	fptr += 2; // rangeShift
 
+	dir->maxp.tag = TAG_MAXP;
+	dir->glyf.tag = TAG_GLYF;
+	dir->cmap.tag = TAG_CMAP;
+	dir->loca.tag = TAG_LOCA;
+	dir->name.tag = TAG_NAME;
+	dir->head.tag = TAG_HEAD;
+	dir->hhea.tag = TAG_HHEA;
+	dir->hmtx.tag = TAG_HMTX;
+
+	for (uint16_t i = 0; i < numTables; i++) {
+		uint32_t tag, checksum, offset, length;
+		readcpy(tag, uint32_t); // reading raw bytes so no endian swap
+		read32(checksum);
+		read32(offset);
+		read32(length);
+
+		TableDirRecord* record = match_dir_tag(dir, tag);
+
+		if (record != NULL) {
+			record->tag = tag;
+			record->checksum = checksum;
+			record->offset = offset;
+			record->length = length;
+			
+		}
+	}
+	return 0;
+error_eof:
+
+	return 1;
+	
+}
 
 int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len) {
 
@@ -224,82 +239,45 @@ int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len) {
     if (filemem == NULL) { puts("unable to open file"); return 1;}
 
 	uint8_t* fp = filemem;
+	uint8_t* fptr = fp;
 	uint8_t* fend = fp + file_len;
-	reader rdr[1] = { (reader){fp, fp+file_len} };
-
-	TableDir td;
-	read_memcpy(rdr, &td, sizeof(TableDir));
-
-	td.sfntVersion 	 = be32toh(td.sfntVersion);
-    td.numTables	 = be16toh(td.numTables);
-    td.searchRange 	 = be16toh(td.searchRange); 
-    td.entrySelector = be16toh(td.entrySelector);
-    td.rangeShift 	 = be16toh(td.rangeShift);
-
-
-    printf("sfnt: %x\n", td.sfntVersion);
-    printf("num tables: %hu\n",td.numTables);
-    printf("search range: %hu\n", td.searchRange);
-    printf("entry selector: %hu\n", td.entrySelector);
-    printf("range shift: %hu\n", td.rangeShift);
-
-    TableDirRecord* records = (TableDirRecord*)malloc((td.numTables * sizeof(TableDirRecord)) + (td.numTables * sizeof(uint32_t)));
-	uint32_t* tags = (uint32_t*)(records + td.numTables);
-	
-	read_memcpy(rdr, records, sizeof(TableDirRecord) * td.numTables);
 	
 
-	for(uint16_t i = 0; i < td.numTables; i++) {
-		TableDirRecord* r = records+i;
-		tags[i] = r->tableTag;
-		
-		printf("%.4s\n", &r->tableTag);
-		// we dont change endianess of tableTag because its basically char[4]
-		r->checksum = be32toh( r->checksum);
-		r->offset = be32toh(r->offset);
-		r->length = be32toh(r->length);
-	}
-    
-   	TableDirRecord maxp = find_table_record("maxp", records, tags, td.numTables);
-	TableDirRecord glyf = find_table_record("glyf", records, tags, td.numTables);
-	TableDirRecord cmap = find_table_record("cmap", records, tags, td.numTables);
-	TableDirRecord loca = find_table_record("loca", records, tags, td.numTables);
-	TableDirRecord name = find_table_record("name", records, tags, td.numTables);
-	TableDirRecord head = find_table_record("head", records, tags, td.numTables);
-	TableDirRecord hhea = find_table_record("hhea", records, tags, td.numTables);
-	TableDirRecord hmtx = find_table_record("hmtx", records, tags, td.numTables);
-
-	TableMAXP table_maxp;
-	TableHEAD table_head;
+	TableDirectory dir;
 	int err; 
-	err = read_maxp(filemem + maxp.offset, maxp.length, &table_maxp);
+	err = read_directory(fptr, fend, &dir);
 	if (err != 0) return err;
 
-	printf("version: %hu.%hu\n", table_maxp.versionInt, table_maxp.versionFrac);
+	TTF_FontData fontdata;
+	
+	err = read_maxp(filemem + dir.maxp.offset, dir.maxp.length, &fontdata);
+	if (err != 0) return err;
 
-	printf("glyph count: %hu\n", table_maxp.numGlyphs);
-	printf("max contours: %hu\n", table_maxp.maxContours);
-	printf("max points: %hu\n", table_maxp.maxPoints);
-	printf("max component depth: %hu\n", table_maxp.maxComponentDepth);
+	printf("version: %hu.%hu\n", fontdata.versionInt, fontdata.versionFrac);
+
+	printf("glyph count: %hu\n", fontdata.numGlyphs);
+	printf("max contours: %hu\n", fontdata.maxContours);
+	printf("max points: %hu\n", fontdata.maxPoints);
+	printf("max component depth: %hu\n", fontdata.maxComponentDepth);
 
 	
 
-	err = read_head(filemem + head.offset, head.length, &table_head);
+	err = read_head(filemem + dir.head.offset, dir.head.length, &fontdata);
 	if (err != 0) return err;
 
-	printf("format: %hi\n", g_head.indexToLocFormat);
+	printf("format: %hi\n", fontdata.indexToLocFormat);
 	//err = read_cmap(filemem + cmap.offset, cmap.length);
 	//if (err != 0) return err;
 
-	uint16_t num_offsets = table_maxp.numGlyphs + 1;
+	uint16_t num_offsets = fontdata.numGlyphs + 1;
 	uint32_t* loca_offsets = (uint32_t*)calloc(num_offsets, sizeof(uint32_t));
 	
-	err = read_loca(filemem + loca.offset, loca.length, loca_offsets, num_offsets, table_head.indexToLocFormat);
+	err = read_loca(filemem + dir.loca.offset, dir.loca.length, loca_offsets, num_offsets, fontdata.indexToLocFormat);
 	if (err != 0) return err;
 
 	TTF_Data ttf_data;
 
-	err = read_glyf(filemem + glyf.offset, glyf.length, loca_offsets, table_maxp, &ttf_data);
+	err = read_glyf(filemem + dir.glyf.offset, dir.glyf.length, loca_offsets, &fontdata, &ttf_data);
 	if (err != 0) return err;
 
 
@@ -416,47 +394,55 @@ uint8_t* read_file(const char* path, uint64_t* length) {
 	return mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
 }
 
-void free_file(long length) {
 
-}
+int validate_table(uint8_t* fp, const uint8_t* fend, TableDirRecord record) {
 
-
-// if the record is not found, the record returned is all zero except the tag is set to the requested tag
-TableDirRecord find_table_record(const char* tag_str, TableDirRecord* records, uint32_t* tags, uint16_t count) {
-    uint32_t tag = *(uint32_t*)tag_str; // this is a bad idea
-    
-    for(uint16_t i = 0; i < count; i++)
-        if (tags[i] == tag) return records[i];
-    
-
-    return (TableDirRecord){tag, 0, 0, 0};
-}
-
-
-int read_maxp(uint8_t* fp, uint32_t length, TableMAXP* maxp) {
-	reader rdr[1] = { (reader){fp, fp+length} };
+	uint8_t* fptr = fp+record.offset;
+	if (fptr > fend || fptr + record.length > fend)
+		return 1;
 
 	
-	read_memcpy(rdr, maxp, sizeof(TableMAXP));
+	
+/*
+	// TODO: check checksum
+	uint32_t calc_checksum = 0;
+	uint32_t nLongs = (record.length + 3) / 4;
+	while (nLongs-- > 0)
+		calc_checksum += *fptr++;	
 
-	maxp->versionInt = be16toh(maxp->versionInt);
-	maxp->versionFrac = be16toh(maxp->versionFrac);
-    maxp->numGlyphs = be16toh(maxp->numGlyphs);
-    maxp->maxPoints = be16toh(maxp->maxPoints);
-    maxp->maxContours = be16toh(maxp->maxContours);
-    maxp->maxComponentPoints = be16toh(maxp->maxComponentPoints);
-    maxp->maxComponentContours = be16toh(maxp->maxComponentContours);
-    maxp->maxZones = be16toh(maxp->maxZones);
-    maxp->maxTwilightPoints = be16toh(maxp->maxTwilightPoints);
-    maxp->maxStorage = be16toh(maxp->maxStorage);
-    maxp->maxFunctionsDefs = be16toh(maxp->maxFunctionsDefs);
-    maxp->maxInstructionDefs = be16toh(maxp->maxInstructionDefs);
-    maxp->maxStackElements = be16toh(maxp->maxStackElements);
-    maxp->maxSizeOfInstructions = be16toh(maxp->maxSizeOfInstructions);
-    maxp->maxComponentElements = be16toh(maxp->maxComponentElements);
-    maxp->maxComponentDepth = be16toh(maxp->maxComponentDepth);
+	if (calc_checksum != record.checksum)
+		return 1;
+
+*/
+	return 0;
+}
+
+
+int read_maxp(uint8_t* fp, uint32_t length, TTF_FontData* fdata) {
+	uint8_t* fptr = fp;
+	const uint8_t* fend = fptr + length;
+
+	read16(fdata->versionInt);
+	read16(fdata->versionFrac);
+    read16(fdata->numGlyphs);
+    read16(fdata->maxPoints);
+    read16(fdata->maxContours);
+    read16(fdata->maxComponentPoints);
+    read16(fdata->maxComponentContours);
+    read16(fdata->maxZones);
+    read16(fdata->maxTwilightPoints);
+    read16(fdata->maxStorage);
+    read16(fdata->maxFunctionsDefs);
+    read16(fdata->maxInstructionDefs);
+    read16(fdata->maxStackElements);
+    read16(fdata->maxSizeOfInstructions);
+    read16(fdata->maxComponentElements);
+    read16(fdata->maxComponentDepth);
 
 	return 0;
+
+error_eof:
+	return 1;
 }
 
 
@@ -484,7 +470,7 @@ int read_loca(uint8_t* fp, uint32_t length, uint32_t* offsets, uint16_t num_offs
 	uint8_t* fptr = fp;
 	uint8_t* fend = fptr + length;
 
-	if (g_head.indexToLocFormat == 0) {
+	if (indexToLocFormat == 0) {
 		for (uint16_t i = 0; i < num_offsets; i++) {
 			read16(offsets[i]);
 			offsets[i] *= 2;
@@ -503,19 +489,25 @@ error_eof:
 }
 
 int read_cmap(uint8_t* fp, uint32_t length) {
-	reader rdr[1] = { (reader){fp, fp+length} };
 
-	uint16_t cmap_version = read_uint16(rdr);
-	uint16_t num_subtables = read_uint16(rdr);
+
+	char* fptr = fp;
+	const char* fend = fp+length;
+
+	uint16_t cmap_version;
+	uint16_t num_subtables;
+
+	read16(cmap_version);
+	read16(num_subtables);
 
 	uint16_t plat_id;
 	uint16_t plats_id;
 	uint32_t offset;
 
 	for(uint16_t i = 0; i < num_subtables; i++) {
-		plat_id = read_uint16(rdr);
-		plats_id = read_uint16(rdr);
-		offset = read_uint32(rdr);
+		read16(plat_id);
+		read16(plats_id);
+		read32(offset);
 		if (plat_id == 0) goto platform_selected; // microsoft platform
 	}
 	
@@ -529,6 +521,9 @@ platform_selected:
 
 
 	return 0;
+
+error_eof:
+	return 1;
 
 }
 
@@ -573,19 +568,22 @@ void intersect_lines() {
 	
 }
 
+#define ARG_1_AND_2_ARE_WORDS 1
+#define ARGS_ARE_XY_VALUES 2
+#define ROUND_XY_TO_GRID 4
 
-int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, TTF_Data* data) {
-	reader rdr[1] = { (reader){fp, fp+length} };
-	
+
+int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fdata, TTF_Data* data) {
+
 	uint8_t* fptr = fp;
 	const uint8_t* fend = fptr + length;
 
 	// maximum size of different buffers
-	uint16_t max_contours_num = maxp.maxContours;
+	uint16_t max_contours_num = fdata->maxContours;
 	uint16_t max_endpts_len = max_contours_num * 2; // 16 bits
-	uint16_t max_intr_len = maxp.maxSizeOfInstructions;
-	uint16_t max_flags_len = maxp.maxPoints * 2; // not sure if this is actually the max, this is if each point has a flag and a number to continue
-	uint16_t max_coords_len = maxp.maxPoints * sizeof(int16_t);
+	uint16_t max_intr_len = fdata->maxSizeOfInstructions;
+	uint16_t max_flags_len = fdata->maxPoints * 2; // not sure if this is actually the max, this is if each point has a flag and a number to continue
+	uint16_t max_coords_len = fdata->maxPoints * sizeof(int16_t);
 
 
 	uint8_t* buffer = (uint8_t*)malloc((size_t)max_intr_len + (size_t)max_endpts_len + (size_t)max_flags_len + (size_t)max_coords_len + (size_t)max_coords_len);
@@ -595,7 +593,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 	//uint8_t* flags_buf = intr_buf + max_intr_len;
 	//vec2i* coords_buf = (vec2i*)(flags_buf + max_flags_len);
 
-	if (maxp.maxPoints > 64) puts("ERROR: point coords will overflow buffer, add a dynamic buffer");
+	if (fdata->maxPoints > 64) puts("ERROR: point coords will overflow buffer, add a dynamic buffer");
 
 	int16_t coords_buf_x[64];
 	int16_t coords_buf_y[64];
@@ -618,7 +616,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 	// Compound Glyphs:
 	// for the time being I'm going to just call this an error
 	
-	uint16_t num_glyphs = maxp.numGlyphs;
+	uint16_t num_glyphs = fdata->numGlyphs;
 
 	uint32_t x = 0;
 
@@ -630,7 +628,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 	
 	size_t cur_offset = 0;
 	for (uint16_t glyph_index = 0; glyph_index < num_glyphs; glyph_index++) {
-		rdr->ptr = fp + offsets[glyph_index];
+		
 
 		uint32_t glyph_len = offsets[glyph_index+1] - offsets[glyph_index];
 		
@@ -651,14 +649,37 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 		int16_t min_x, min_y, max_x, max_y;
 
 		read16(num_contours);
-		if (num_contours < 1) { puts("glyph was a contour, character skipped\n"); continue; }
-		//printf("  num contours: %hi", num_contours);
-		
-		non_empty_glyph_count++;
 		read16(min_x);
 		read16(min_y);
 		read16(max_x);
 		read16(max_y);
+
+		if (num_contours < 1) { 
+			puts("glyph was a contour, character skipped\n"); 
+			
+
+			uint16_t flags, glyph_index;
+			read16(flags);
+			read16(glyph_index);
+
+			// arg 1
+			fptr++;
+			if (flags & ARG_1_AND_2_ARE_WORDS) fptr++;
+
+			// arg 2
+			fptr++;
+			if (flags & ARG_1_AND_2_ARE_WORDS) fptr++;
+
+
+			continue; 
+		}
+
+
+
+		//printf("  num contours: %hi", num_contours);
+		
+		non_empty_glyph_count++;
+
 
 		
 		
@@ -768,7 +789,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TableMAXP maxp, T
 		vec2i start = (vec2i){coords_buf_x[0],  coords_buf_y[0]};
 		vec2i end = (vec2i){0, 0};
 
-		// TODO: this technically reads one two many
+		// INSERT ONE MORE LINE AT THE END
 		TTF_Point* points = (TTF_Point*)(cur_char->endpoints + cur_char->endpoints_count);
 		for (uint16_t in = 0, out = 0; out < num_pts; in++, out++) {
 			
@@ -848,28 +869,31 @@ error_eof:
 }
 
 
-int read_head(uint8_t* fp, uint32_t length, TableHEAD* head) {
-	reader rdr[1] = { (reader){fp, fp+length} };
-
-	head->version_int = 		read_uint16(rdr);	
-	head->version_frac = 		read_uint16(rdr); 	
-	head->fontRevision_int = 	read_uint16(rdr);	
-	head->fontRevision_frac = 	read_uint16(rdr); 	
-	head->checkSumAdjustment = read_uint32(rdr);	
-	head->magicNumber = 		read_uint32(rdr);	
-	head->flags = 				read_uint16(rdr);	
-	head->unitsPerEm = 		read_uint16(rdr);	
-	head->created = 			read_int64(rdr);		
-	head->modified = 			read_int64(rdr);		
-	head->xMin = 				read_int16(rdr);		
-	head->yMin = 				read_int16(rdr);		
-	head->xMax = 				read_int16(rdr);		
-	head->yMax = 				read_int16(rdr);		
-	head->macStyle = 			read_uint16(rdr);	
-	head->lowestRecPPEM = 		read_uint16(rdr);	
-	head->fontDirectionHint = 	read_int16(rdr);		
-	head->indexToLocFormat = 	read_int16(rdr);		
-	head->glyphDataFormat = 	read_int16(rdr);		
+int read_head(uint8_t* fp, uint32_t length, TTF_FontData* fdata) {
+	uint8_t* fptr = fp;
+	const uint8_t* fend = fptr + length;
+	
+	read16(fdata->version_int);
+	read16(fdata->version_frac);
+	read16(fdata->fontRevision_int);
+	read16(fdata->fontRevision_frac);	
+	read32(fdata->checkSumAdjustment);
+	read32(fdata->magicNumber);
+	read16(fdata->flags);
+	read16(fdata->unitsPerEm);
+	read64(fdata->created);
+	read64(fdata->modified);
+	read16(fdata->xMin);
+	read16(fdata->yMin);
+	read16(fdata->xMax);
+	read16(fdata->yMax);
+	read16(fdata->macStyle);	
+	read16(fdata->lowestRecPPEM);
+	read16(fdata->fontDirectionHint);
+	read16(fdata->indexToLocFormat);
+	read16(fdata->glyphDataFormat);
 
 	return 0;
+error_eof:
+	return 1;
 }

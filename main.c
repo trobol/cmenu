@@ -13,7 +13,7 @@ int main(int argc, char *argv[]) {
     read_ttf(argv[1], &first_char, &buffer_len);
 
 	TTF_Character* select_char = first_char;
-	while(select_char != NULL && select_char->character != 'A')
+	while(select_char != NULL && select_char->character != '5')
 		select_char = select_char->next;
     
 	if (select_char == NULL){
