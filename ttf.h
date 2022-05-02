@@ -30,14 +30,14 @@ typedef struct TTF_Point {
 
 typedef struct TTF_Character TTF_Character;
 struct TTF_Character {
-    char character;
+    uint16_t character;
 	int16_t min_x, min_y;
 	int16_t max_x, max_y;
 	uint16_t points_count;
 	uint16_t endpoints_count;
+	TTF_Character* next;
 	TTF_Point* points;
-	uint16_t* endpoints;
-	uint32_t size_bytes;
+	uint16_t endpoints[];
 };
 
 typedef struct TTF_FontData TTF_FontData;

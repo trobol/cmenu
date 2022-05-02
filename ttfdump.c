@@ -392,7 +392,9 @@ void readcmap4(FILE *f)
 	segcount = segcountx2 / 2;
 
 	printf("\tformat = 4\n");
+	printf("\tlength = %u\n", length);
 	printf("\tlanguage = %u\n", language);
+	printf("\tsegcount = %u\n", segcount);
 
 	ushort endcode[segcount];
 	ushort startcode[segcount];

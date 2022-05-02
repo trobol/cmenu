@@ -266,8 +266,8 @@ int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len) {
 	if (err != 0) return err;
 
 	printf("format: %hi\n", fontdata.indexToLocFormat);
-	//err = read_cmap(filemem + cmap.offset, cmap.length);
-	//if (err != 0) return err;
+	err = read_cmap(filemem + dir.cmap.offset, dir.cmap.length);
+	if (err != 0) return err;
 
 	uint16_t num_offsets = fontdata.numGlyphs + 1;
 	uint32_t* loca_offsets = (uint32_t*)calloc(num_offsets, sizeof(uint32_t));
@@ -491,8 +491,8 @@ error_eof:
 int read_cmap(uint8_t* fp, uint32_t length) {
 
 
-	char* fptr = fp;
-	const char* fend = fp+length;
+	uint8_t* fptr = fp;
+	const uint8_t* fend = fp+length;
 
 	uint16_t cmap_version;
 	uint16_t num_subtables;
@@ -509,6 +509,7 @@ int read_cmap(uint8_t* fp, uint32_t length) {
 		read16(plats_id);
 		read32(offset);
 		if (plat_id == 0) goto platform_selected; // microsoft platform
+		
 	}
 	
 	puts("cmap: missing microsoft encoding");
@@ -516,12 +517,48 @@ int read_cmap(uint8_t* fp, uint32_t length) {
 	
 
 platform_selected:
+ {
+	fptr = fp + offset;
+	uint16_t format, length, language; // format 0
+	read16(format);
+	read16(length);
+	read16(language);
+	printf("%u, %u, %u\n", format, length, language);
+
+	if (format == 4) {
+		uint16_t segCountX2, searchRange, entrySelector, rangeShift;
+		uint16_t segCount;
+		read16(segCountX2);
+		
+		segCount = segCountX2 / 2;
+		printf("segCount: %u\n", segCount);
+		read16(searchRange);
+		
+		read16(entrySelector);
+		
+		read16(rangeShift);
+		fptr += segCount * 2; // endCode[segCount]
+		
+		fptr += 2; // reserved pad
+		
+		fptr += segCount * 2; // startCode[segCount]
+		fptr += segCount * 2; // idDelta[segCount]
+		
+		for (uint16_t i = 0; i < segCount; i++) {
+			uint16_t idRangeOffset;
+			read16(idRangeOffset);
+			printf("%hu: %hu\n", i, idRangeOffset);
+		}
+		
+		fflush(stdout);
+			
+		//fptr += segCount * 2; // idRangeOffset[segCount]
 
 
-
-
+		
+	}
 	return 0;
-
+ }
 error_eof:
 	return 1;
 
@@ -568,10 +605,22 @@ void intersect_lines() {
 	
 }
 
-#define ARG_1_AND_2_ARE_WORDS 1
-#define ARGS_ARE_XY_VALUES 2
-#define ROUND_XY_TO_GRID 4
+#define ARG_1_AND_2_ARE_WORDS           (1 << 0)
+#define ARGS_ARE_XY_VALUES                      (1 << 1)
+#define ROUND_XY_TO_GRID                        (1 << 2)
+#define WE_HAVE_A_SCALE                         (1 << 3)
+#define RESERVED                                        (1 << 4)
+#define MORE_COMPONENTS                         (1 << 5)
+#define WE_HAVE_AN_X_AND_Y_SCALE        (1 << 6)
+#define WE_HAVE_A_TWO_BY_TWO            (1 << 7)
+#define WE_HAVE_INSTRUCTIONS            (1 << 8)
+#define USE_MY_METRICS                          (1 << 9)
+#define OVERLAP_COMPOUND                        (1 << 10)
+#define SCALED_COMPONENT_OFFSET         (1 << 11)
+#define UNSCALED_COMPONENT_OFFSET       (1 << 12)
 
+
+// TODO: I think I should make some sort of allocation management, it should be possible to predict the size of things?
 
 int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fdata, TTF_Data* data) {
 
@@ -593,11 +642,10 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fda
 	//uint8_t* flags_buf = intr_buf + max_intr_len;
 	//vec2i* coords_buf = (vec2i*)(flags_buf + max_flags_len);
 
-	if (fdata->maxPoints > 64) puts("ERROR: point coords will overflow buffer, add a dynamic buffer");
-
-	int16_t coords_buf_x[64];
-	int16_t coords_buf_y[64];
-	uint8_t flags_buf[64];
+	if (fdata->maxPoints > 128) puts("ERROR: point coords will overflow buffer, add a dynamic buffer");
+	int16_t coords_buf_x[128];
+	int16_t coords_buf_y[128];
+	uint8_t flags_buf[128];
 	
 	// two types of glyphs: simple and compound
 	// source: https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6glyf.html
@@ -625,10 +673,11 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fda
 	uint8_t* buffer_start = malloc(buffer_size); // alloc 256 bytes to start
 
 	uint32_t non_empty_glyph_count = 0;
+	uint32_t compound_count = 0;
+	uint32_t simple_count = 0;
 	
 	size_t cur_offset = 0;
 	for (uint16_t glyph_index = 0; glyph_index < num_glyphs; glyph_index++) {
-		
 
 		uint32_t glyph_len = offsets[glyph_index+1] - offsets[glyph_index];
 		
@@ -655,13 +704,15 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fda
 		read16(max_y);
 
 		if (num_contours < 1) { 
-			puts("glyph was a contour, character skipped\n"); 
-			
+			compound_count++;
+			//printf("%hu: compound \n", glyph_index);
 
-			uint16_t flags, glyph_index;
+			uint16_t flags, sub_glyph_index;
+			do {
 			read16(flags);
-			read16(glyph_index);
+			read16(sub_glyph_index);
 
+			//printf(" glyph_index: %hu\n", sub_glyph_index);
 			// arg 1
 			fptr++;
 			if (flags & ARG_1_AND_2_ARE_WORDS) fptr++;
@@ -670,7 +721,23 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fda
 			fptr++;
 			if (flags & ARG_1_AND_2_ARE_WORDS) fptr++;
 
+			if (flags & WE_HAVE_A_SCALE) {
+				fptr += 2; // x and y
+			}
+			else if (flags & WE_HAVE_AN_X_AND_Y_SCALE)
+			{
+				fptr += 2; // x
+				fptr += 2; // y
+			}
+			else if (flags & WE_HAVE_A_TWO_BY_TWO)
+			{
+				fptr += 2;
+				fptr += 2;
+				fptr += 2;
+				fptr += 2;
+			}
 
+			} while (flags & MORE_COMPONENTS);
 			continue; 
 		}
 
@@ -679,9 +746,8 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fda
 		//printf("  num contours: %hi", num_contours);
 		
 		non_empty_glyph_count++;
+		simple_count++;
 
-
-		
 		
 		if (num_contours > max_contours_num) { printf("contour num was greater than reported max %hu %hu", num_contours, max_contours_num); return -1; }
 	
@@ -860,6 +926,8 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fda
 
 	data->characters = (TTF_Character*)buffer_start;
 	data->characters_end = (TTF_Character*)(buffer_start + buffer_size);
+
+	printf("compound glyphs: %u\nsimple glyphs: %u\n", compound_count, simple_count);
 
 	return 0;
 error_eof:
