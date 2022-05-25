@@ -49,4 +49,5 @@ typedef struct TTF_CharInfo {
 } TTF_CharInfo;
 
 
-int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len);
+TTF_FontData* read_ttf(const char* path, const char* alphabet);
+uint32_t find_glyph_index(TTF_FontData* fdata, char character);

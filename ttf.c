@@ -16,6 +16,14 @@ sequence of concatenated tables
 
 */
 
+
+typedef struct {
+	uint16_t format;
+	uint32_t length;
+	uint8_t data[];
+} CMapTable;
+
+
 struct TTF_FontData {
 	// TABLE 'maxp'
 	uint16_t versionInt;
@@ -56,6 +64,17 @@ struct TTF_FontData {
 	int16_t		indexToLocFormat;
 	int16_t		glyphDataFormat;
 
+
+	// Internal variables
+
+	// TODO: make alphabet utf8 instead of using full 32 bits
+	uint32_t* alphabet; // can be NULL
+	uint32_t alphabet_len;
+
+
+	CMapTable* cmap_table;
+	// TODO: add optional alphabet
+
 };
 
 typedef struct {
@@ -73,7 +92,6 @@ typedef struct {
     uint16_t entrySelector;
     uint16_t rangeShift;
 } TableDir;
-
 
 /*
 uint16_t read16(uint8_t** fp, uint8_t* end);
@@ -121,6 +139,8 @@ uint8_t* read_file(const char* path, uint64_t* length);
 void free_file(long length);
 
 
+#define MIN(a, b) ((a) < (b) ? (a) : (b)) 
+#define MAX(a, b) ((a) > (b) ? (a) : (b)) 
 
 
 #define readcpy(var, type) if (fptr + sizeof(type) > fend) goto error_eof; (var) = *(type*)fptr; fptr += sizeof(type);
@@ -231,12 +251,170 @@ error_eof:
 	
 }
 
-int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len) {
+uint32_t find_glyph_index(TTF_FontData* fdata, char character) {
+	
+	uint16_t code = (uint16_t)character;
+	uint16_t format = fdata->cmap_table->format;
+	
 
+	if (format == 4) {
+		uint16_t* table = fdata->cmap_table->data;
+		
+		uint16_t segCountX2, searchRange, entrySelector, rangeShift;
+		uint16_t* endCodeArray, *startCodeArray, *idRangeOffsetArray, *glyphIndexArray;
+		int16_t* idDeltaArray;
+		uint16_t segCount;
+
+		segCountX2 = *table++;
+		searchRange = *table++;
+		entrySelector = *table++;
+		rangeShift = *table++;
+
+		segCount = segCountX2 / 2;
+
+		printf("segCount: %hu\n", segCount);
+		endCodeArray = table;
+		table += segCount;
+
+		table += 1; // reserved pad
+
+		startCodeArray = table;
+		table += segCount;
+
+		idDeltaArray = (int16_t*)table;
+		table += segCount;
+
+		idRangeOffsetArray = table;
+		table += segCount;
+
+		glyphIndexArray = table;
+		table += segCount;
+
+		for (uint32_t i = 0; i < segCount; i++) {
+			printf("<%6hu> <%6hu> %6hi %6hu\n", endCodeArray[i], startCodeArray[i], idDeltaArray[i] , idRangeOffsetArray[i] );
+		}
+
+
+		int segIdx = -1;
+		for (int i = 0; i < segCount; i++) {
+			if (endCodeArray[i] >= code) {
+				segIdx = i;
+				break;
+			}
+		}
+
+		if (segIdx == -1) return 0;
+
+		printf("segIdx: %i, ", segIdx);
+		
+		uint16_t startCode = startCodeArray[segIdx];
+		int16_t idDelta = idDeltaArray[segIdx];
+		uint16_t idRangeOffset = idRangeOffsetArray[segIdx];
+
+		if (startCode > code) return 0;
+
+		uint32_t index = (code - startCode) + (idRangeOffset / 2) + segIdx;
+
+		uint32_t offset = idRangeOffset == 0 ? code : idRangeOffsetArray[index];
+
+		if (offset == 0) return 0;
+		printf("index: %u, idRangeOffset: %hu, idDelta: %hi\n", index, index, idDelta);
+
+		return offset + idDelta;
+
+	}
+}
+
+uint8_t utf8_code_len(uint8_t first_char);
+inline uint8_t utf8_code_len(uint8_t first_char) {
+	uint8_t size = 1;
+	size += first_char >= 0b11000000;
+	size += first_char >= 0b11100000;
+	size += first_char >= 0b11110000;
+	return size;
+}
+
+int create_alphabet(TTF_FontData* fontdata, const char* req_alphabet) {
+	fontdata->alphabet = NULL;
+	fontdata->alphabet_len = 0;
+
+	if (req_alphabet == NULL) 
+		return 0;
+
+	// find string length and character count
+	// check for any invalid unicode characters that would overrun end of string
+	uint32_t char_count = 0;
+	uint32_t req_len = 0;
+
+	for(uint8_t* cptr = (uint8_t*)req_alphabet; *cptr != 0; char_count++) {
+		uint8_t byte_count = utf8_code_len(*cptr);
+		while(byte_count > 0) {
+			if (cptr == 0) return -1;
+			cptr++, req_len++, byte_count--;
+		}
+	}
+
+	uint32_t* alphabet = malloc(char_count * sizeof(uint32_t));
+
+	uint8_t* cptr = (uint8_t*)req_alphabet;
+	uint8_t c;
+	for(uint32_t i = 0; i < char_count; i++) {
+		uint8_t clen = utf8_code_len(*cptr);
+		uint32_t value = 0;
+		while(clen-- > 0) {
+			c = *(cptr++);
+			value = (value << 8) | c;	
+		}
+		alphabet[i] = value;
+	}
+
+
+	// insertion sort
+	for (int i = 0; i < char_count; i++)
+	for (int j = i; j > 0 && alphabet[j] < alphabet[j-1]; j--) {
+		uint32_t tmp = alphabet[j];
+		alphabet[j] = alphabet[j-1];
+		alphabet[j-1] = tmp;
+		
+	}
+
+	/*
+	char* test = malloc(req_len+1);
+	char* tptr = test;
+	for(int i = 0; i < char_count; i++) {
+		char* c = (char*)(alphabet + i); 
+		printf("%u: %hhi %hhi %hhi %hhi\n", alphabet[i], c[0], c[1], c[2], c[3]);
+		for(int j = 3; j > -1; j--) {
+			if (c[j] != 0) {
+				*(tptr++) = c[j];
+			}
+		}
+	}
+
+	test[req_len] = 0;
+
+	puts(test);
+	*/
+	
+	fontdata->alphabet = alphabet;
+	fontdata->alphabet_len = char_count;
+
+	return 0;
+}
+
+TTF_FontData* read_ttf(const char* path, const char* requested_alphabet) {
+
+	TTF_FontData* fdata = malloc(sizeof(TTF_FontData));
 
 	long file_len;
 	uint8_t* filemem = read_file(path, &file_len);
-    if (filemem == NULL) { puts("unable to open file"); return 1;}
+    if (filemem == NULL) { puts("unable to open file"); return NULL;}
+
+	int err;
+
+	err = create_alphabet(fdata, requested_alphabet);
+	if (err != 0) return NULL;
+	// sort alphabet
 
 	uint8_t* fp = filemem;
 	uint8_t* fptr = fp;
@@ -244,44 +422,44 @@ int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len) {
 	
 
 	TableDirectory dir;
-	int err; 
+	 
 	err = read_directory(fptr, fend, &dir);
-	if (err != 0) return err;
+	if (err != 0) return NULL;
 
-	TTF_FontData fontdata;
-	
-	err = read_maxp(filemem + dir.maxp.offset, dir.maxp.length, &fontdata);
-	if (err != 0) return err;
-
-	printf("version: %hu.%hu\n", fontdata.versionInt, fontdata.versionFrac);
-
-	printf("glyph count: %hu\n", fontdata.numGlyphs);
-	printf("max contours: %hu\n", fontdata.maxContours);
-	printf("max points: %hu\n", fontdata.maxPoints);
-	printf("max component depth: %hu\n", fontdata.maxComponentDepth);
 
 	
+	err = read_maxp(filemem + dir.maxp.offset, dir.maxp.length, fdata);
+	if (err != 0) return NULL;
 
-	err = read_head(filemem + dir.head.offset, dir.head.length, &fontdata);
-	if (err != 0) return err;
+	printf("version: %hu.%hu\n", fdata->versionInt, fdata->versionFrac);
 
-	printf("format: %hi\n", fontdata.indexToLocFormat);
-	err = read_cmap(filemem + dir.cmap.offset, dir.cmap.length);
-	if (err != 0) return err;
+	printf("glyph count: %hu\n", fdata->numGlyphs);
+	printf("max contours: %hu\n", fdata->maxContours);
+	printf("max points: %hu\n", fdata->maxPoints);
+	printf("max component depth: %hu\n", fdata->maxComponentDepth);
 
-	uint16_t num_offsets = fontdata.numGlyphs + 1;
+	
+
+	err = read_head(filemem + dir.head.offset, dir.head.length, fdata);
+	if (err != 0) return NULL;
+
+	printf("format: %hi\n", fdata->indexToLocFormat);
+	err = read_cmap(filemem + dir.cmap.offset, dir.cmap.length, fdata);
+	if (err != 0) return NULL;
+
+	uint16_t num_offsets = fdata->numGlyphs + 1;
 	uint32_t* loca_offsets = (uint32_t*)calloc(num_offsets, sizeof(uint32_t));
 	
-	err = read_loca(filemem + dir.loca.offset, dir.loca.length, loca_offsets, num_offsets, fontdata.indexToLocFormat);
-	if (err != 0) return err;
+	err = read_loca(filemem + dir.loca.offset, dir.loca.length, loca_offsets, num_offsets, fdata->indexToLocFormat);
+	if (err != 0) return NULL;
 
 	TTF_Data ttf_data;
 
-	err = read_glyf(filemem + dir.glyf.offset, dir.glyf.length, loca_offsets, &fontdata, &ttf_data);
-	if (err != 0) return err;
+	err = read_glyf(filemem + dir.glyf.offset, dir.glyf.length, loca_offsets, fdata, &ttf_data);
+	if (err != 0) return NULL;
 
 
-	*first_char = ttf_data.characters;
+	//*first_char = ttf_data.characters;
 
     /*	maxPoints
 
@@ -309,19 +487,20 @@ int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len) {
 	while(select_char != NULL && select_char->character != 'A')
 		select_char = select_char->next;
     
-	if (select_char == NULL){
-		puts("COULDNT SELECT CHARACTER");
-		return 1;
-	}
+	//if (select_char == NULL){
+	//	puts("COULDNT SELECT CHARACTER");
+	//	return 1;
+	//}
 	FILE* svgp = fopen("svg_path.svg", "w");
 
-	fprintf(svgp, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" transform=\"scale(1,-1)\" height=\"1500\"> <path stroke=\"black\" fill=\"none\" d=\"");
+	fprintf(svgp, "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20000\" transform=\"scale(1,-1)\" height=\"1500\">");
 
-	TTF_Character* cur_char = select_char;
+	TTF_Character* cur_char = ttf_data.characters;
 	int x_offset = 200;
 	int i = 0;
 	while( cur_char->next != NULL) {
-		
+		fprintf(svgp, "<!-- %hu -->", cur_char->character);
+		fprintf(svgp, "<path stroke=\"black\" fill=\"none\" d=\"\n");
 		fprintf(svgp, "M %i 100\n", x_offset);
 		
 		uint16_t num_coords = cur_char->points_count;
@@ -364,7 +543,7 @@ int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len) {
 			
 			
 			if (i == endpts_buf[contour_index]) {
-				fprintf(svgp, "l -20 -20 m 0 40 l 40 -40 m 0 40 l -20 -20"); // draw an x
+				fprintf(svgp, "l -20 -20 m 0 40 l 40 -40 m 0 40 l -20 -20"); // draw an x1
 				contour_start = endpts_buf[contour_index]+1;
 				contour_index++;
 			}
@@ -374,12 +553,17 @@ int read_ttf(const char* path, TTF_Character** first_char, size_t* buffer_len) {
 		x_offset += cur_char->max_x - cur_char->min_x + 20;
 		cur_char = cur_char->next;
 		i++;
+		fprintf(svgp, "\"/>\n");
 	}
 	
 
-	fprintf(svgp, "\"/></svg>");
+	fprintf(svgp, "</svg>");
 
 	fclose(svgp);
+
+
+
+	return fdata;
 	
 }
 
@@ -488,7 +672,9 @@ error_eof:
 	return 1;
 }
 
-int read_cmap(uint8_t* fp, uint32_t length) {
+int read_cmap(uint8_t* fp, uint32_t length, TTF_FontData* fdata) {
+
+	// select "best" table to use
 
 
 	uint8_t* fptr = fp;
@@ -500,9 +686,9 @@ int read_cmap(uint8_t* fp, uint32_t length) {
 	read16(cmap_version);
 	read16(num_subtables);
 
-	uint16_t plat_id;
-	uint16_t plats_id;
-	uint32_t offset;
+	uint16_t plat_id; // Platform identifier
+	uint16_t plats_id; // Platform-specific encoding identifier
+	uint32_t offset; // Offset of the mapping table
 
 	for(uint16_t i = 0; i < num_subtables; i++) {
 		read16(plat_id);
@@ -517,48 +703,64 @@ int read_cmap(uint8_t* fp, uint32_t length) {
 	
 
 platform_selected:
- {
+
 	fptr = fp + offset;
-	uint16_t format, length, language; // format 0
-	read16(format);
-	read16(length);
-	read16(language);
-	printf("%u, %u, %u\n", format, length, language);
+	uint16_t table_format;
+	read16(table_format);
+	
 
-	if (format == 4) {
-		uint16_t segCountX2, searchRange, entrySelector, rangeShift;
-		uint16_t segCount;
-		read16(segCountX2);
-		
-		segCount = segCountX2 / 2;
-		printf("segCount: %u\n", segCount);
-		read16(searchRange);
-		
-		read16(entrySelector);
-		
-		read16(rangeShift);
-		fptr += segCount * 2; // endCode[segCount]
-		
-		fptr += 2; // reserved pad
-		
-		fptr += segCount * 2; // startCode[segCount]
-		fptr += segCount * 2; // idDelta[segCount]
-		
-		for (uint16_t i = 0; i < segCount; i++) {
-			uint16_t idRangeOffset;
-			read16(idRangeOffset);
-			printf("%hu: %hu\n", i, idRangeOffset);
-		}
-		
-		fflush(stdout);
-			
-		//fptr += segCount * 2; // idRangeOffset[segCount]
-
-
-		
+	uint32_t table_len;
+	uint32_t table_lang;
+	uint16_t reserved;
+	switch(table_format) {
+		case 0:
+		case 2:
+		case 4:
+		case 6:
+			read16(table_len);
+			read16(table_lang);
+			table_len -= 6;
+			break;
+		case 8:
+		case 10:
+		case 12:
+		case 13:
+		case 14:
+			read16(reserved);
+			read32(table_len);
+			read32(table_lang);
+			table_len -= 12; 
+			break;
+		default:
+			// unknown format
+			return -1;
 	}
-	return 0;
- }
+
+	if (table_len == 0 || table_len > (fend-fptr))
+		// reported table length is not valid
+		return -1;
+
+	printf("%u, %u, %u\n", table_format, table_len, table_lang);
+	CMapTable* table = malloc(sizeof(CMapTable) + table_len);
+	table->format = table_format;
+	table->length = table_len;
+
+	if (table_format == 0) {
+		memcpy(table->data, fptr, 256);
+		puts("loaded format 1");
+	} else if (table_format == 4) {
+		for(uint32_t i = 0; i < table_len; i+=2) {
+			table->data[i+1] = *(fptr++);
+			table->data[i] = *(fptr++);
+		}
+		puts("loaded format 4");
+	}
+	
+	
+	fdata->cmap_table = table;
+
+
+ return 0;
 error_eof:
 	return 1;
 
@@ -678,7 +880,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fda
 	
 	size_t cur_offset = 0;
 	for (uint16_t glyph_index = 0; glyph_index < num_glyphs; glyph_index++) {
-
+		
 		uint32_t glyph_len = offsets[glyph_index+1] - offsets[glyph_index];
 		
 		if (glyph_len == 0) {
@@ -771,7 +973,7 @@ int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fda
 		}
 
 		TTF_Character* cur_char = (TTF_Character*)(buffer_start + cur_offset);
-		cur_char->character = glyph_index-1;
+		cur_char->character = glyph_index;
 		cur_char->min_x = min_x;
 		cur_char->min_y = min_y;
 		cur_char->max_x = max_x;
