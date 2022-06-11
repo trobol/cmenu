@@ -35,19 +35,21 @@ struct TTF_Character {
 	int16_t max_x, max_y;
 	uint16_t points_count;
 	uint16_t endpoints_count;
-	TTF_Character* next;
 	TTF_Point* points;
-	uint16_t endpoints[];
+	uint16_t* endpoints;
 };
 
 typedef struct TTF_FontData TTF_FontData;
 
-
+typedef struct TTF_CharLoader TTF_CharLoader;
 
 typedef struct TTF_CharInfo {
 	
 } TTF_CharInfo;
 
 
-TTF_FontData* read_ttf(const char* path, const char* alphabet);
+TTF_FontData* ttf_load(const char* path, const char* alphabet);
 uint32_t find_glyph_index(TTF_FontData* fdata, char character);
+
+TTF_Character* ttf_char_new(TTF_FontData* fdata);
+int ttf_load_character(TTF_FontData* fdata, struct TTF_Character* out_character, uint32_t char_code);

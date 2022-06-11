@@ -67,6 +67,8 @@ struct TTF_FontData {
 
 	// Internal variables
 
+	uint32_t* glyph_offsets;
+
 	// TODO: make alphabet utf8 instead of using full 32 bits
 	uint32_t* alphabet; // can be NULL
 	uint32_t alphabet_len;
@@ -131,8 +133,8 @@ int validate_table(uint8_t* fp, const uint8_t* fend, TableDirRecord record);
 
 
 int read_maxp(uint8_t* fp, uint32_t length, TTF_FontData* fdata);
-int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fdata, TTF_Data* data);
-int read_loca(uint8_t* fp, uint32_t length, uint32_t* offsets, uint16_t num_glyphs, int16_t indexToLocFormat);
+int read_glyf(uint8_t* fp, uint32_t length, TTF_FontData* fdata);
+int read_loca(uint8_t* fp, uint32_t length, TTF_FontData* fdata);
 int read_head(uint8_t* fp, uint32_t length, TTF_FontData* fdata);
 
 uint8_t* read_file(const char* path, uint64_t* length);
@@ -402,7 +404,7 @@ int create_alphabet(TTF_FontData* fontdata, const char* req_alphabet) {
 	return 0;
 }
 
-TTF_FontData* read_ttf(const char* path, const char* requested_alphabet) {
+TTF_FontData* ttf_load(const char* path, const char* requested_alphabet) {
 
 	TTF_FontData* fdata = malloc(sizeof(TTF_FontData));
 
@@ -446,16 +448,11 @@ TTF_FontData* read_ttf(const char* path, const char* requested_alphabet) {
 	printf("format: %hi\n", fdata->indexToLocFormat);
 	err = read_cmap(filemem + dir.cmap.offset, dir.cmap.length, fdata);
 	if (err != 0) return NULL;
-
-	uint16_t num_offsets = fdata->numGlyphs + 1;
-	uint32_t* loca_offsets = (uint32_t*)calloc(num_offsets, sizeof(uint32_t));
 	
-	err = read_loca(filemem + dir.loca.offset, dir.loca.length, loca_offsets, num_offsets, fdata->indexToLocFormat);
+	err = read_loca(filemem + dir.loca.offset, dir.loca.length, fdata);
 	if (err != 0) return NULL;
 
-	TTF_Data ttf_data;
-
-	err = read_glyf(filemem + dir.glyf.offset, dir.glyf.length, loca_offsets, fdata, &ttf_data);
+	err = read_glyf(filemem + dir.glyf.offset, dir.glyf.length, fdata);
 	if (err != 0) return NULL;
 
 
@@ -484,8 +481,7 @@ TTF_FontData* read_ttf(const char* path, const char* requested_alphabet) {
     //   parse buffer into structures
 
 	TTF_Character* select_char =  ttf_data.characters;
-	while(select_char != NULL && select_char->character != 'A')
-		select_char = select_char->next;
+;
     
 	//if (select_char == NULL){
 	//	puts("COULDNT SELECT CHARACTER");
@@ -551,7 +547,7 @@ TTF_FontData* read_ttf(const char* path, const char* requested_alphabet) {
 
 	
 		x_offset += cur_char->max_x - cur_char->min_x + 20;
-		cur_char = cur_char->next;
+
 		i++;
 		fprintf(svgp, "\"/>\n");
 	}
@@ -650,11 +646,14 @@ typedef struct {
 } SimpleGlyfFlags;
 
 
-int read_loca(uint8_t* fp, uint32_t length, uint32_t* offsets, uint16_t num_offsets, int16_t indexToLocFormat) {
+int read_loca(uint8_t* fp, uint32_t length, TTF_FontData* fdata) {
 	uint8_t* fptr = fp;
 	uint8_t* fend = fptr + length;
+	uint16_t num_offsets = fdata->numGlyphs + 1;
+	uint32_t* offsets = (uint32_t*)calloc(num_offsets, sizeof(uint32_t));
+	fdata->glyph_offsets = offsets;
 
-	if (indexToLocFormat == 0) {
+	if (fdata->indexToLocFormat == 0) {
 		for (uint16_t i = 0; i < num_offsets; i++) {
 			read16(offsets[i]);
 			offsets[i] *= 2;
@@ -824,10 +823,11 @@ void intersect_lines() {
 
 // TODO: I think I should make some sort of allocation management, it should be possible to predict the size of things?
 
-int read_glyf(uint8_t* fp, uint32_t length, uint32_t* offsets, TTF_FontData* fdata, TTF_Data* data) {
+int read_glyf(uint8_t* fp, uint32_t length, TTF_FontData* fdata) {
 
 	uint8_t* fptr = fp;
 	const uint8_t* fend = fptr + length;
+	uint32_t* offsets = fdata->glyph_offsets;
 
 	// maximum size of different buffers
 	uint16_t max_contours_num = fdata->maxContours;
@@ -1137,6 +1137,102 @@ error_eof:
 
 	
 }
+
+TTF_Character* ttf_char_new(TTF_FontData* fdata) {
+	
+}
+
+typedef union float2 {
+	struct { float x, y};
+	float f[2];
+} float2;
+
+struct TTF_CharLoader {
+	// data from the 
+	uint16_t maxPoints;
+	uint16_t maxContours;
+	uint16_t maxComponentPoints;
+	uint16_t maxComponentContours;
+	uint16_t maxComponentElements;
+	uint16_t maxComponentDepth;
+	TTF_FontData* fdata;
+
+	float2* points;
+	uint16_t* endpoints;
+	uint32_t* componentStack;
+
+	uint16_t componentDepth; // used as index into componentStack;
+	uint16_t pointsIdx;
+	uint16_t endpointsIdx;
+	
+
+};
+
+
+void load_complex_glpf(uint8_t* fptr, const uint8_t* fend, TTF_CharLoader* loader);
+void load_simple_glpf(uint8_t* fptr, const uint8_t* fend, TTF_CharLoader* loader);
+void load_single_glpf(uint32_t glyph_index, TTF_CharLoader* loader);
+
+void load_single_glpf(uint32_t glyph_index, TTF_CharLoader* loader) {
+	if (glyph_index >= loader->fdata->numGlyphs)
+		return;
+
+	const uint32_t* offsets = loader->fdata->glyph_offsets;
+	uint32_t glyph_len = offsets[glyph_index+1] - offsets[glyph_index];
+
+	// load the children first
+	
+}
+
+
+
+// TODO: implement system to load all desired glyfs at once (should be faster)
+
+int ttf_load_character(TTF_FontData* fdata, struct TTF_Character* out_character, uint32_t char_code) {
+
+	const uint32_t pointsSize = fdata->maxComponentPoints * sizeof(float2);
+	const uint32_t endpointsSize = fdata->maxComponentContours * sizeof(uint16_t);
+	const uint32_t componentStackSize = fdata->maxComponentDepth * sizeof(uint16_t);
+
+	uint8_t* buf = malloc(sizeof(TTF_CharLoader) + pointsSize + endpointsSize + componentStackSize);
+	TTF_CharLoader* loader = (TTF_CharLoader*)buf;
+	loader->maxPoints = fdata->maxPoints;
+	loader->maxContours = fdata->maxContours;
+	loader->maxComponentPoints = fdata->maxComponentPoints;
+	loader->maxComponentContours = fdata->maxComponentContours;
+	loader->maxComponentElements = fdata->maxComponentElements;
+	loader->maxComponentDepth = fdata->maxComponentDepth;
+
+	loader->points = buf + sizeof(TTF_CharLoader);
+	loader->endpoints = loader->points + pointsSize;
+	loader->componentDepth = loader->endpoints + endpointsSize;
+
+
+
+	loader->componentDepth = 0;
+	loader->componentDepth = 0;
+	loader->pointsIdx = 0;
+	loader->endpointsIdx = 0;
+
+	// get index 
+
+
+
+
+
+	//load_single_glpf();
+	
+}
+
+void load_simple_glpf(uint8_t* fptr, const uint8_t* fend, TTF_CharLoader* loader) {
+
+}
+
+void load_complex_glpf(uint8_t* fptr, const uint8_t* fend, TTF_CharLoader* loader) {
+
+}
+
+
 
 
 int read_head(uint8_t* fp, uint32_t length, TTF_FontData* fdata) {
